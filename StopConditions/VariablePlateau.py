@@ -1,39 +1,39 @@
-from typing import Generator
-
-from sympy import field
+from dataclasses import field, dataclass
+from typing import Generator, Tuple
 
 from Numerical import StopCondition
 
 
+@dataclass
 class VariablePlateau(StopCondition):
-    var_name: str
-    patience: int = field(ge=1, default=10)
-    tolerance: float = field(gt=0, default=1e-6)
+    tracked_variable: str = field(default=None)
+    patience: int = field(default=10)
+    tolerance: float = field(default=1e-6)
     patience_counter: int = field(init=False, default=0)
 
-    def __post_init__(self):
-        super().__post_init__()
-        if self.var_name not in self.history:
-            raise ValueError(f"Variable '{self.var_name}' not found in history."
-                             f"Available variables: {', '.join(self.history.keys())}")
-        self.stop_reason = f'Variable plateau of {self.var_name} after {self.patience} iterations'
+    def stop_condition_generator(self) -> Generator[Tuple[bool, str], None, None]:
+        """Generate stop condition based on plateau detection in tracked variable"""
+        self.patience_counter = 0
 
-    @property
-    def last_iteration(self) -> int:
-        return max(self.history[self.var_name].keys())
-
-    def get_last_value(self) -> float:
-        return self.history[self.var_name][self.last_iteration]
-
-
-    def stop_condition_generator(self) -> Generator[bool, None, None]:
         while True:
-            if self.patience_counter >= self.patience:
-                break
-            var_value = self.get_last_value()
-            if abs(var_value) < self.tolerance:
+            # Need at least 2 iterations to check for plateaus
+            if self.last_iteration < 1:
+                yield False, f"Not enough iterations to determine plateau"
+                continue
+
+            # Get current and previous values
+            current = self.history[self.tracked_variable][self.last_iteration]
+            previous = self.history[self.tracked_variable][self.last_iteration - 1]
+
+            # Check if value has plateaued within tolerance
+            if abs(current - previous) <= self.tolerance:
                 self.patience_counter += 1
+                if self.patience_counter >= self.patience:
+                    self.stop_reason = f"Variable '{self.tracked_variable}' plateaued for {self.patience} iterations within tolerance {self.tolerance}"
+                    yield True, self.stop_reason
+                    break
+                yield False, f"Potential plateau detected - {self.patience_counter}/{self.patience} iterations within tolerance {self.tolerance}"
             else:
+                # Reset counter if significant change observed
                 self.patience_counter = 0
-            yield
-        raise StopIteration
+                yield False, f"Change detected in '{self.tracked_variable}': {previous} → {current}, difference: {abs(current - previous)}"
