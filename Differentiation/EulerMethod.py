@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any, ClassVar, Set
+from typing import Dict, Any, ClassVar, Set, Callable
 
-import numpy as np
 import sympy
 
 from Numerical import Numerical
@@ -9,13 +8,20 @@ from Numerical import Numerical
 
 @dataclass
 class EulerMethod(Numerical):
-    function: sympy.Function = field(default=None)
+    function: Callable = field(default=None)
     x0: float = field(default=0)
     dx: float = field(default=0.1)
     variables: ClassVar[Set[str]] = {'x', 'slope', 'dx'}
 
+    def __post_init__(self):
+        if self.function is None:
+            raise ValueError('Function cannot be provided at initialization')
+        if not isinstance(self.function, Callable):
+            raise ValueError(f'Function must be callable. Got: {type(self.function)}')
+
+
     def y(self, x: float) -> float:
-        return self.function.subs(x=x)
+        return self.function(x)
 
     def _validate_initial_state(self) -> None:
         if not self.function:
@@ -25,8 +31,7 @@ class EulerMethod(Numerical):
 
 
     def initialize(self) -> None:
-        dy = self.y(self.x0 + self.dx) - self.y(self.x0)
-        slope_0 = dy / self.dx
+        slope_0 = self.y(self.x0)
 
         self.initial_state = dict(
             x=self.x0,
@@ -41,8 +46,7 @@ class EulerMethod(Numerical):
         :return: New value
         """
         xn = self.history['x'][self.last_iteration]
-        dy = self.y(xn + self.dx) - self.y(xn)
-        slope = dy / self.dx
+        slope = self.y(xn)
         dx = self.dx
         return dict(
             x=xn + slope * dx,

@@ -2,8 +2,9 @@ import json
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Generator, Optional
+from typing import List, Dict, Any, Generator, Optional, Tuple
 import matplotlib.pyplot as plt
+import numpy as np
 
 from log_config import get_logger
 
@@ -17,45 +18,52 @@ StopConditionType = Generator[bool, None, None]
 @dataclass
 class StopCondition(ABC):
     history: HistoryType = field(default_factory=dict)
-    stop_reason: Optional[str] = field(default=None, init=False)
+    stop_reason: str = field(default='', init=False)
     _generator: Optional[Generator[bool, None, None]] = field(default=None, init=False)
 
-    def __post_init__(self):
-        if self.history is None:
-            raise ValueError("History cannot be None")
+    @property
+    def last_iteration(self) -> int:
+        return max([max(i.keys()) for i in self.history.values()])
 
     @abstractmethod
-    def stop_condition_generator(self) -> Generator[bool, None, None]:
+    def stop_condition_generator(self) -> Generator[Tuple[bool, str], None, None]:
         """Create a generator that will yield stop condition results"""
         pass
 
-    def next(self, history: HistoryType) -> bool:
-        """
-         Get next evaluation of the stop condition with updated history.
-        :param history: Current computation history.
-        :return: True if the stop condition is met (generator raised StopIteration),
-          False otherwise
-        """
-        self.history = history
-
-        # Initialize generator if needed
+    def _initialize_generator(self) -> None:
+        """Initialize the generator"""
         if self._generator is None:
             self._generator = self.stop_condition_generator()
 
-        # Get next value
-        try:
-            next(self._generator)
-            return False
-        except StopIteration:
-            # Reinitialize the generator and try again
-            self._generator = self.stop_condition_generator()
-            # Stop Condition is met
-            return True
+    def next(self, history: HistoryType) -> Tuple[bool, str]:
+        """
+        Executes the next step in the generation process, managing the state of the generator
+        and responding to halt conditions. This method initializes the generator if necessary
+        and updates the history attribute with the provided input. It then proceeds with the
+        generator until a stop condition is explicitly met or the iteration ends.
+
+        :param history: The current state or data that is fed into the generator. It guides
+            the generator's iteration steps and contributes to determining when to stop.
+        :type history: HistoryType
+        :return: A tuple where the first element is a boolean indicating whether the
+            generator should stop (True if it should stop), and the second element is
+            a string providing the reason for stopping.
+        :rtype: Tuple[bool, str]
+        """
+        while True:
+            self._initialize_generator()
+            try:
+                self.history = history
+                should_stop, reason = next(self._generator)
+                return should_stop, reason
+            except StopIteration:
+                return True, f'Stop condition [{self.__class__.__name__}] met: {self.stop_reason}'
+
 
 
 @dataclass
 class Numerical(ABC):
-    initial_state: Dict[str, Any]
+    initial_state: Dict[str, Any] = field(init=False)
     stop_conditions: List[StopCondition] = field(default_factory=list)
     max_iterations: int = 1_000
     verbose: bool = False
@@ -85,13 +93,7 @@ class Numerical(ABC):
         for var_name, value in state.items():
             self.history[var_name][self._iteration] = value
 
-    def log(self, message: str, verbose: bool = False) -> None:
-        """Print a message if verbose is True"""
-        logger.info(message)
-        if self.verbose or verbose:
-            print(message)
-
-    def _check_stop_conditions(self) -> Generator[bool, None, None]:
+    def _check_stop_conditions(self) -> Generator[str, None, None]:
         """
         Checks if any of the specified stopping conditions are met and raises StopIteration
         if so.
@@ -99,23 +101,28 @@ class Numerical(ABC):
         """
         for iteration in range(self.max_iterations):
             self._iteration = iteration
-            # Check custom stop conditions
-            stop_reasons = [
-                stop_cond.stop_reason or stop_cond.__class__.__name__
-                for stop_cond in self.stop_conditions
-                if stop_cond.next(self.history)
-            ]
+            if iteration == 0:
+                yield f'Initial Iteration completed'
+                continue
+            met_stop_conditions = []
+            unmet_stop_conditions = []
+            for stop_cond in self.stop_conditions:
+                stop_cond_met, reason = stop_cond.next(self.history)
+                condition_name = stop_cond.__class__.__name__
+                if stop_cond_met:
+                    met_stop_conditions.append(  f"Stop condition [{condition_name:<15}] met    : {reason}")
+                else:
+                    unmet_stop_conditions.append(f"Stop condition [{condition_name:<15}] not met: {reason}")
+            status = '\n'.join(met_stop_conditions + unmet_stop_conditions)
+            should_stop = len(unmet_stop_conditions) != len(self.stop_conditions)
+            if should_stop:
+                yield status
+                break
+            yield f'Iteration {iteration} completed\n{status}'
 
-            if stop_reasons:
-                for reason in stop_reasons:
-                    self.log(f"Stopping condition {reason} met")
-                raise StopIteration('Stopping condition(s) met:' + '\n'.join(stop_reasons))
-
-            yield True
-
-        # Handle max iterations reached
-        self.log(f"Stopping condition max_iterations reached ({self.max_iterations})")
-        raise StopIteration(f'Stopping condition met: max_iterations reached ({self.max_iterations})')
+        else:
+            # Handle max iterations reached
+            logger.info(f"Stop condition max iterations reached ({self.max_iterations})")
 
     def run(self) -> HistoryType:
         """
@@ -125,19 +132,17 @@ class Numerical(ABC):
         """
         self.history.clear()
 
-        self.log(f"Starting {self.__class__.__name__}", True)
+        logger.info(f"Starting {self.__class__.__name__}")
         self.initialize()
 
         # Main iteration loop using the stop checker generator
-        for _ in self._check_stop_conditions():
-            self.log('-' * 50, True)
-            self.log(f"Iteration {self.iteration}", True)
-            self.log('-' * 50, True)
-
-            # Execute algorithm step
+        for status in self._check_stop_conditions():
+            logger.info(f"{status}")
+            logger.info(f"Iteration {self._iteration}....")
             state = self.step()
             self.record_state(state)
-            self.log(f"Iteration {self.iteration}: \n{json.dumps(state)}")
+            logger.info(f"State: {json.dumps(state, indent=2)}")
+
 
 
         return dict(self.history)
@@ -155,12 +160,8 @@ class Numerical(ABC):
     def get_history_at(self, iteration: int) -> Dict[str, Any]:
         """
         Get all variables' values at a specific iteration.
-
-        Args:
-            iteration: Iteration number
-
-        Returns:
-            Dict[str, Any]: Variable values at specified iteration
+        :param iteration: Iteration number
+        :return: Dict[str, Any]: Variable values at specified iteration
         """
         if iteration < 0:
             raise ValueError(f"Iteration must be non-negative, got {iteration}")
@@ -205,3 +206,72 @@ class Numerical(ABC):
         ax.set_xlabel('Iteration')
         ax.set_ylabel(var_name)
         return ax
+
+    def export_to_latex(self, filepath: str, variables: List[str] = None,
+                        iterations: List[int] = None, precision: int = 4,
+                        caption: str = None, label: str = None) -> None:
+        """
+        Export history to a LaTeX table
+
+        Args:
+            filepath: Path to save the LaTeX table
+            variables: List of variable names to include (None for all variables)
+            iterations: List of iterations to include (None for all iterations)
+            precision: Number of decimal places for floating point values
+            caption: Optional caption for the table
+            label: Optional label for the table
+        """
+        # Use all variables if none specified
+        if variables is None:
+            variables = list(self.history.keys())
+
+        # Use all iterations if none specified
+        if iterations is None:
+            max_iter = self.last_iteration
+            iterations = list(range(max_iter + 1))
+
+        # Start building the LaTeX table
+        latex_content = [
+            "\\begin{table}[htbp]",
+            "\\centering",
+            f"\\begin{{tabular}}{{c{'|c' * len(variables)}}}",
+            "\\hline",
+            f"Iteration & {' & '.join(variables)} \\\\ \\hline"
+        ]
+
+        # Add table rows
+        for iter_num in iterations:
+            try:
+                state = self.get_history_at(iter_num)
+                row_values = []
+                for var in variables:
+                    value = state.get(var)
+                    if isinstance(value, (float, np.floating)):
+                        formatted_val = f"{value:.{precision}f}"
+                    else:
+                        formatted_val = str(value)
+                    row_values.append(formatted_val)
+                latex_content.append(f"{iter_num} & {' & '.join(row_values)} \\\\")
+            except ValueError:
+                # Skip iterations that don't exist in history
+                continue
+
+        # Finish table
+        latex_content.append("\\hline")
+        latex_content.append("\\end{tabular}")
+
+        # Add caption if provided
+        if caption:
+            latex_content.append(f"\\caption{{{caption}}}")
+
+        # Add label if provided
+        if label:
+            latex_content.append(f"\\label{{{label}}}")
+
+        latex_content.append("\\end{table}")
+
+        # Write to file
+        with open(filepath, 'w') as file:
+            file.write('\n'.join(latex_content))
+
+        logger.info(f"LaTeX table exported to {filepath}")
