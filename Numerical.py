@@ -17,13 +17,13 @@ StopConditionType = Generator[bool, None, None]
 
 @dataclass
 class StopCondition(ABC):
-    history: HistoryType = field(default_factory=dict)
+    history: HistoryType = field(default_factory=lambda: defaultdict(dict))
     stop_reason: str = field(default='', init=False)
-    _generator: Optional[Generator[bool, None, None]] = field(default=None, init=False)
+    _generator: Optional[Generator[Tuple[bool, str], None, None]] = field(default=None, init=False)
 
     @property
     def last_iteration(self) -> int:
-        return max([max(i.keys()) for i in self.history.values()])
+        return max([max(i.keys()) for i in self.history.values()], default=0)
 
     @abstractmethod
     def stop_condition_generator(self) -> Generator[Tuple[bool, str], None, None]:
@@ -195,16 +195,28 @@ class Numerical(ABC):
         with open(filepath, 'w') as file:
             json.dump(history_dict, file, indent=2)
 
-    def plot_history(self, var_name:str, ax: plt.axis, *args, **kwargs) -> plt.axis:
+    def plot_history(self,
+                     x_var:Optional[str],
+                     y_var:str,
+                     ax: plt.axis,
+                     *args, **kwargs) -> plt.axis:
         """
         Plot history of a variable vs iterations.
-        :param var_name: name of the variable to plot.
+        :param x_var: x-axis variable name.
+        :param y_var: y-axis variable name.
         :param ax: Plot axis
         """
-        data = self.history[var_name].values()
-        ax.plot(data, *args, **kwargs)
-        ax.set_xlabel('Iteration')
-        ax.set_ylabel(var_name)
+        if x_var is not None and x_var not in self.history:
+            raise ValueError(f"Variable '{x_var}' not found in history."
+                             f"Available variables: {list(self.history.keys())}")
+        if y_var not in self.history:
+            raise ValueError(f"Variable '{y_var}' not found in history"
+                             f"Available variables: {list(self.history.keys())}")
+
+
+        ydata = self.history[y_var].values()
+        xdata = self.history[x_var].values() if x_var is not None else np.arange(len(ydata))
+        ax.plot(xdata, ydata, *args, **kwargs)
         return ax
 
     def export_to_latex(self, filepath: str, variables: List[str] = None,
