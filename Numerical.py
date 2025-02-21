@@ -221,7 +221,8 @@ class Numerical(ABC):
 
     def export_to_latex(self, filepath: str, variables: List[str] = None,
                         iterations: List[int] = None, precision: int = 4,
-                        caption: str = None, label: str = None) -> None:
+                        caption: str = None, label: str = None,
+                        formatting: Dict[str, Dict[str, str]] = None) -> None:
         """
         Export history to a LaTeX table
 
@@ -232,6 +233,13 @@ class Numerical(ABC):
             precision: Number of decimal places for floating point values
             caption: Optional caption for the table
             label: Optional label for the table
+            formatting: Optional dictionary with formatting options for variables:
+                        {
+                          'variable_name': {
+                            'header': 'LaTeX formatted header',
+                            'format': 'LaTeX formatted string for values'
+                          }
+                        }
         """
         # Use all variables if none specified
         if variables is None:
@@ -242,34 +250,72 @@ class Numerical(ABC):
             max_iter = self.last_iteration
             iterations = list(range(max_iter + 1))
 
+        # Initialize formatting dictionary if None
+        if formatting is None:
+            formatting = {}
+
         # Start building the LaTeX table
         latex_content = [
             "\\begin{table}[htbp]",
             "\\centering",
-            f"\\begin{{tabular}}{{c{'|c' * len(variables)}}}",
-            "\\hline",
-            f"Iteration & {' & '.join(variables)} \\\\ \\hline"
+            f"\\begin{{tabular}}{{c{'c' * len(variables)}}}",
+            "\\toprule"
         ]
+
+        # Add header row with formatted variable names
+        header_row = ["Iteration"]
+        for var in variables:
+            if var in formatting and 'header' in formatting[var]:
+                header_row.append(formatting[var]['header'])
+            else:
+                header_row.append(var)
+
+        latex_content.append(f"{' & '.join(header_row)} \\\\")
+        latex_content.append("\\midrule")
 
         # Add table rows
         for iter_num in iterations:
-            try:
-                state = self.get_history_at(iter_num)
-                row_values = []
-                for var in variables:
-                    value = state.get(var)
-                    if isinstance(value, (float, np.floating)):
-                        formatted_val = f"{value:.{precision}f}"
+            state = self.get_history_at(iter_num)
+            logger.debug(f"State at iteration {iter_num}: {json.dumps(state, indent=2)}")
+            row_values = [iter_num]
+            for var in variables:
+                value = state.get(var)
+                logger.debug(f"Value for {var} at iteration {iter_num}: {value}")
+
+                try:
+                    if var in formatting and 'format' in formatting[var]:
+                        format_spec = formatting[var]['format']
+                        logger.debug(f'Format spec for {var}: {format_spec}')
+
+                        if isinstance(format_spec, str):
+                            # Use the format string directly
+                            formatted_val = f'{value:{format_spec}}'
+                        elif callable(format_spec):
+                            # Use the formatting function
+                            formatted_val = format_spec(value)
+                        else:
+                            logger.warning(f"Invalid format specification for {var}")
+                            formatted_val = str(value)
                     else:
-                        formatted_val = str(value)
-                    row_values.append(formatted_val)
-                latex_content.append(f"{iter_num} & {' & '.join(row_values)} \\\\")
-            except ValueError:
-                # Skip iterations that don't exist in history
-                continue
+                        # Default formatting based on type
+                        if isinstance(value, (np.floating, float)):
+                            formatted_val = f'{value:0.6f}'
+                        else:
+                            formatted_val = str(value)
+
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Formatting error for {var}: {e}")
+                    formatted_val = str(value)
+
+                logger.debug(f"Formatted value for {var} at iteration {iter_num}: {formatted_val}")
+                row_values.append(formatted_val)
+
+            row_values = list(map(str, row_values))
+            latex_content.append(f"{' & '.join(row_values)} \\\\")
+
 
         # Finish table
-        latex_content.append("\\hline")
+        latex_content.append("\\bottomrule")
         latex_content.append("\\end{tabular}")
 
         # Add caption if provided
