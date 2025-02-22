@@ -241,95 +241,147 @@ class Numerical(ABC):
                           }
                         }
         """
-        # Use all variables if none specified
-        if variables is None:
-            variables = list(self.history.keys())
+        history_to_latex(
+            self.history,
+            filepath,
+            variables=variables,
+            iterations=iterations,
+            precision=precision,
+            caption=caption,
+            label=label,
+            formatting=formatting
+        )
 
-        # Use all iterations if none specified
-        if iterations is None:
-            max_iter = self.last_iteration
-            iterations = list(range(max_iter + 1))
+    @staticmethod
+    def absolute_error(x, y):
+        return np.abs(x - y)
 
-        # Initialize formatting dictionary if None
-        if formatting is None:
-            formatting = {}
+    @staticmethod
+    def relative_error(x, y):
+        return np.abs((x - y) / x)
 
-        # Start building the LaTeX table
-        latex_content = [
-            "\\begin{table}[htbp]",
-            "\\centering",
-            f"\\begin{{tabular}}{{c{'c' * len(variables)}}}",
-            "\\toprule"
-        ]
+def history_to_latex(
+    history: Dict[str, Dict[int, Any]],
+    filepath: str,
+    variables: List[str] = None,
+    iterations: List[int] = None,
+    precision: int = 4,
+    caption: str = None,
+    label: str = None,
+    formatting: Dict[str, Dict[str, str]] = None
+) -> str:
+    """
+    Convert optimization history to a LaTeX table and save to file
 
-        # Add header row with formatted variable names
-        header_row = ["Iteration"]
+    Args:
+        history: Dictionary mapping variable names to {iteration: value} dictionaries
+        filepath: Path to save the LaTeX table
+        variables: List of variable names to include (None for all variables)
+        iterations: List of iterations to include (None for all iterations)
+        precision: Number of decimal places for floating point values
+        caption: Optional caption for the table
+        label: Optional label for the table
+        formatting: Optional dictionary with formatting options for variables:
+                    {
+                      'variable_name': {
+                        'header': 'LaTeX formatted header',
+                        'format': 'LaTeX formatted string for values'
+                      }
+                    }
+    Returns:
+        str: The complete LaTeX table content
+    """
+    # Use all variables if none specified
+    if variables is None:
+        variables = list(history.keys())
+
+    # Use all iterations if none specified
+    if iterations is None:
+        max_iter = max(max(hist.keys()) for hist in history.values() if hist)
+        iterations = list(range(max_iter + 1))
+
+    # Initialize formatting dictionary if None
+    if formatting is None:
+        formatting = {}
+
+    # Start building the LaTeX table
+    latex_content = [
+        "\\begin{table}[htbp]",
+        "\\centering",
+        f"\\begin{{tabular}}{{c{'c' * len(variables)}}}",
+        "\\toprule"
+    ]
+
+    # Add header row with formatted variable names
+    header_row = ["Iteration"]
+    for var in variables:
+        if var in formatting and 'header' in formatting[var]:
+            header_row.append(formatting[var]['header'])
+        else:
+            header_row.append(var)
+
+    latex_content.append(f"{' & '.join(header_row)} \\\\")
+    latex_content.append("\\midrule")
+
+    # Add table rows
+    for iter_num in iterations:
+        row_values = [iter_num]
         for var in variables:
-            if var in formatting and 'header' in formatting[var]:
-                header_row.append(formatting[var]['header'])
-            else:
-                header_row.append(var)
+            value = history[var].get(iter_num)
+            logger.debug(f"Value for {var} at iteration {iter_num}: {value}")
 
-        latex_content.append(f"{' & '.join(header_row)} \\\\")
-        latex_content.append("\\midrule")
+            try:
+                if var in formatting and 'format' in formatting[var]:
+                    format_spec = formatting[var]['format']
+                    logger.debug(f'Format spec for {var}: {format_spec}')
 
-        # Add table rows
-        for iter_num in iterations:
-            state = self.get_history_at(iter_num)
-            logger.debug(f"State at iteration {iter_num}: {json.dumps(state, indent=2)}")
-            row_values = [iter_num]
-            for var in variables:
-                value = state.get(var)
-                logger.debug(f"Value for {var} at iteration {iter_num}: {value}")
-
-                try:
-                    if var in formatting and 'format' in formatting[var]:
-                        format_spec = formatting[var]['format']
-                        logger.debug(f'Format spec for {var}: {format_spec}')
-
-                        if isinstance(format_spec, str):
-                            # Use the format string directly
-                            formatted_val = f'{value:{format_spec}}'
-                        elif callable(format_spec):
-                            # Use the formatting function
-                            formatted_val = format_spec(value)
-                        else:
-                            logger.warning(f"Invalid format specification for {var}")
-                            formatted_val = str(value)
+                    if isinstance(format_spec, str):
+                        # Use the format string directly
+                        formatted_val = f'{value:{format_spec}}'
+                    elif callable(format_spec):
+                        # Use the formatting function
+                        formatted_val = format_spec(value)
                     else:
-                        # Default formatting based on type
-                        if isinstance(value, (np.floating, float)):
-                            formatted_val = f'{value:0.6f}'
-                        else:
-                            formatted_val = str(value)
+                        logger.warning(f"Invalid format specification for {var}")
+                        formatted_val = str(value)
+                else:
+                    # Default formatting based on type
+                    if isinstance(value, (np.floating, float)):
+                        formatted_val = f'{value:0.{precision}f}'
+                    else:
+                        formatted_val = str(value)
 
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"Formatting error for {var}: {e}")
-                    formatted_val = str(value)
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Formatting error for {var}: {e}")
+                formatted_val = str(value)
 
-                logger.debug(f"Formatted value for {var} at iteration {iter_num}: {formatted_val}")
-                row_values.append(formatted_val)
+            logger.debug(f"Formatted value for {var} at iteration {iter_num}: {formatted_val}")
+            row_values.append(formatted_val)
 
-            row_values = list(map(str, row_values))
-            latex_content.append(f"{' & '.join(row_values)} \\\\")
+        row_values = list(map(str, row_values))
+        latex_content.append(f"{' & '.join(row_values)} \\\\")
 
+    # Finish table
+    latex_content.append("\\bottomrule")
+    latex_content.append("\\end{tabular}")
 
-        # Finish table
-        latex_content.append("\\bottomrule")
-        latex_content.append("\\end{tabular}")
+    # Add caption if provided
+    if caption:
+        latex_content.append(f"\\caption{{{caption}}}")
 
-        # Add caption if provided
-        if caption:
-            latex_content.append(f"\\caption{{{caption}}}")
+    # Add label if provided
+    if label:
+        latex_content.append(f"\\label{{{label}}}")
 
-        # Add label if provided
-        if label:
-            latex_content.append(f"\\label{{{label}}}")
+    latex_content.append("\\end{table}")
 
-        latex_content.append("\\end{table}")
+    # Join all lines
+    latex_table = '\n'.join(latex_content)
 
-        # Write to file
-        with open(filepath, 'w') as file:
-            file.write('\n'.join(latex_content))
+    # Write to file
+    with open(filepath, 'w') as file:
+        file.write(latex_table)
 
-        logger.info(f"LaTeX table exported to {filepath}")
+    logger.info(f"LaTeX table exported to {filepath}")
+    return latex_table
+
