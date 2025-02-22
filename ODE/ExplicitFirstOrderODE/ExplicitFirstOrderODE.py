@@ -25,12 +25,23 @@ class ExplicitFirstOrderMethod(Numerical, ABC):
         self._validate_initial_state()
 
     def _validate_initial_state(self) -> None:
-        if self.derivative_function is None:
-            raise ValueError('Derivative function must be provided at initialization')
-        elif not callable(self.derivative_function):
-            raise ValueError(f'Derivative function must be callable. Got: {self.derivative_function}')
+        self._single_argument_function(self.derivative_function)
 
-        derivative_function_signature = inspect.signature(self.derivative_function)
+        if self.x0 is None:
+            raise ValueError('Initial state must include x0')
+        if self.dt is None:
+            raise ValueError('Initial state must include dt')
+        if self.t0 is None:
+            raise ValueError('Initial state must include t0')
+
+    @staticmethod
+    def _single_argument_function(func):
+        if func is None:
+            raise ValueError('Derivative function must be provided at initialization')
+        elif not callable(func):
+            raise ValueError(f'Derivative function must be callable. Got: {type(func)}')
+
+        derivative_function_signature = inspect.signature(func)
         non_default_args = [
             p for p in derivative_function_signature.parameters.values()
             if p.default is inspect.Parameter.empty and
@@ -40,12 +51,6 @@ class ExplicitFirstOrderMethod(Numerical, ABC):
             raise ValueError(f'Derivative function must take exactly one positional argument. '
                              f'Got: {non_default_args}. arguments: {derivative_function_signature.parameters}')
 
-        if self.x0 is None:
-            raise ValueError('Initial state must include x0')
-        if self.dt is None:
-            raise ValueError('Initial state must include dt')
-        if self.t0 is None:
-            raise ValueError('Initial state must include t0')
 
     @abstractmethod
     def step(self) -> Dict[str, Any]:
