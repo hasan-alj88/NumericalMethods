@@ -22,8 +22,8 @@ class VariablePlateau(StopCondition):
                 continue
 
             # Get current and previous values
-            current = self.history[self.tracked_variable][self.last_iteration]
-            previous = self.history[self.tracked_variable][self.last_iteration - 1]
+            current = self.history.loc[self.last_iteration, self.tracked_variable]
+            previous = self.history.loc[self.last_iteration - 1, self.tracked_variable]
 
             # Check if value has plateaued within tolerance
             if abs(current - previous) <= self.tolerance:

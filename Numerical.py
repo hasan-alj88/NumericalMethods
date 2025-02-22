@@ -1,29 +1,26 @@
 import json
 from abc import ABC, abstractmethod
-from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Generator, Optional, Tuple
+from typing import List, Generator, Optional, Tuple
+
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 from log_config import get_logger
 
 logger = get_logger(__name__)
 
 
-HistoryType = Dict[str, Dict[int, Any]]
-StopConditionType = Generator[bool, None, None]
-
-
 @dataclass
 class StopCondition(ABC):
-    history: HistoryType = field(default_factory=lambda: defaultdict(dict))
+    history: pd.DataFrame = field(default_factory=pd.DataFrame)
     stop_reason: str = field(default='', init=False)
     _generator: Optional[Generator[Tuple[bool, str], None, None]] = field(default=None, init=False)
 
     @property
     def last_iteration(self) -> int:
-        return max([max(i.keys()) for i in self.history.values()], default=0)
+        return self.history.index.max() if not self.history.empty else 0
 
     @abstractmethod
     def stop_condition_generator(self) -> Generator[Tuple[bool, str], None, None]:
@@ -35,19 +32,15 @@ class StopCondition(ABC):
         if self._generator is None:
             self._generator = self.stop_condition_generator()
 
-    def next(self, history: HistoryType) -> Tuple[bool, str]:
+    def next(self, history: pd.DataFrame) -> Tuple[bool, str]:
         """
         Executes the next step in the generation process, managing the state of the generator
-        and responding to halt conditions. This method initializes the generator if necessary
-        and updates the history attribute with the provided input. It then proceeds with the
-        generator until a stop condition is explicitly met or the iteration ends.
+        and responding to halt conditions.
 
-        :param history: The current state or data that is fed into the generator. It guides
-            the generator's iteration steps and contributes to determining when to stop.
-        :type history: HistoryType
+        :param history: The current state DataFrame with iterations as index and variables as columns
+        :type history: pd.DataFrame
         :return: A tuple where the first element is a boolean indicating whether the
-            generator should stop (True if it should stop), and the second element is
-            a string providing the reason for stopping.
+            generator should stop, and the second element is the reason for stopping.
         :rtype: Tuple[bool, str]
         """
         while True:
@@ -60,14 +53,13 @@ class StopCondition(ABC):
                 return True, f'Stop condition [{self.__class__.__name__}] met: {self.stop_reason}'
 
 
-
 @dataclass
 class Numerical(ABC):
-    initial_state: Dict[str, Any] = field(init=False)
+    initial_state: dict = field(init=False)
     stop_conditions: List[StopCondition] = field(default_factory=list)
     max_iterations: int = 1_000
     verbose: bool = False
-    history: HistoryType = field(default_factory=lambda: defaultdict(dict))
+    history: pd.DataFrame = field(default_factory=pd.DataFrame)
     _iteration: int = field(default=0, init=False)
 
     def add_stop_condition(self, stop_condition: StopCondition) -> None:
@@ -76,7 +68,7 @@ class Numerical(ABC):
 
     @abstractmethod
     def initialize(self) -> None:
-        self.history.clear()
+        self.history = pd.DataFrame()
         self._iteration = 0
         self.record_state(self.initial_state)
 
@@ -85,34 +77,34 @@ class Numerical(ABC):
         pass
 
     @abstractmethod
-    def step(self) -> Dict[str, Any]:
+    def step(self) -> dict:
         pass
 
-    def record_state(self, state: Dict[str, Any]) -> None:
-        """Record the current state in history"""
-        for var_name, value in state.items():
-            self.history[var_name][self._iteration] = value
+    def record_state(self, state: dict) -> None:
+        new_row = pd.DataFrame([state], index=[self._iteration])
+        self.history = pd.concat([self.history, new_row], verify_integrity=True)
 
     def _check_stop_conditions(self) -> Generator[str, None, None]:
         """
-        Checks if any of the specified stopping conditions are met and raises StopIteration
-        if so.
+        Checks if any of the specified stopping conditions are met
         :yields: Always yields True until a stop condition is met
         """
-        for iteration in range(self.max_iterations):
+        for iteration in range(1, self.max_iterations+1):
             self._iteration = iteration
             if iteration == 0:
                 yield f'Initial Iteration completed'
                 continue
+
             met_stop_conditions = []
             unmet_stop_conditions = []
             for stop_cond in self.stop_conditions:
                 stop_cond_met, reason = stop_cond.next(self.history)
                 condition_name = stop_cond.__class__.__name__
                 if stop_cond_met:
-                    met_stop_conditions.append(  f"Stop condition [{condition_name:<15}] met    : {reason}")
+                    met_stop_conditions.append(f"Stop condition [{condition_name:<15}] met    : {reason}")
                 else:
                     unmet_stop_conditions.append(f"Stop condition [{condition_name:<15}] not met: {reason}")
+
             status = '\n'.join(met_stop_conditions + unmet_stop_conditions)
             should_stop = len(unmet_stop_conditions) != len(self.stop_conditions)
             if should_stop:
@@ -121,31 +113,27 @@ class Numerical(ABC):
             yield f'Iteration {iteration} completed\n{status}'
 
         else:
-            # Handle max iterations reached
             logger.info(f"Stop condition max iterations reached ({self.max_iterations})")
 
-    def run(self) -> HistoryType:
+    def run(self) -> pd.DataFrame:
         """
         Run the numerical method using a for-loop with the generator method
         that checks stop conditions using StopIteration.
-        :returns: Dict[str, Dict[int, Any]]: Complete history of the computation
+        :returns: pd.DataFrame: Complete history of the computation
         """
-        self.history.clear()
+        self.history = pd.DataFrame()
 
         logger.info(f"Starting {self.__class__.__name__}")
         self.initialize()
 
-        # Main iteration loop using the stop checker generator
         for status in self._check_stop_conditions():
             logger.info(f"{status}")
             logger.info(f"Iteration {self._iteration}....")
             state = self.step()
             self.record_state(state)
-            logger.info(f"State: {json.dumps(state, indent=2)}")
+            logger.info(f"State: \n{pd.Series(state).to_string()}\n")
 
-
-
-        return dict(self.history)
+        return self.history
 
     @property
     def iteration(self) -> int:
@@ -155,31 +143,28 @@ class Numerical(ABC):
     @property
     def last_iteration(self) -> int:
         """Maximum number of iterations"""
-        return max([max(values.keys()) if values else -1 for values in self.history.values()], default=-1)
+        return self.history.index.max() if not self.history.empty else -1
 
-    def get_history_at(self, iteration: int) -> Dict[str, Any]:
+    def get_history_at(self, iteration: int) -> dict:
         """
         Get all variables' values at a specific iteration.
         :param iteration: Iteration number
-        :return: Dict[str, Any]: Variable values at specified iteration
+        :return: dict: Variable values at specified iteration
         """
         if iteration < 0:
             raise ValueError(f"Iteration must be non-negative, got {iteration}")
         if iteration > self.last_iteration:
             raise ValueError(f"Iteration {iteration} exceeds maximum recorded iteration {self.last_iteration}")
 
-        return {
-            var_name: values.get(iteration)
-            for var_name, values in self.history.items()
-        }
+        return self.history.loc[iteration].to_dict()
 
     def __getitem__(self, item):
-        """Dictionary-style access to variable history"""
-        if item not in self.history:
+        """DataFrame-style access to variable history"""
+        if item not in self.history.columns:
             raise KeyError(f"Variable '{item}' not found in history")
         return self.history[item]
 
-    def get_last_state(self) -> Dict[str, Any]:
+    def get_last_state(self) -> dict:
         """Get the last state of the numerical method"""
         return self.get_history_at(self.last_iteration)
 
@@ -190,14 +175,11 @@ class Numerical(ABC):
         Args:
             filepath: Path to save the history
         """
-        # Convert default dict to regular dict for serialization
-        history_dict = {k: dict(v) for k, v in self.history.items()}
-        with open(filepath, 'w') as file:
-            json.dump(history_dict, file, indent=2)
+        self.history.to_json(filepath, indent=2, orient='split')
 
     def plot_history(self,
-                     x_var:Optional[str],
-                     y_var:str,
+                     x_var: Optional[str],
+                     y_var: str,
                      ax: plt.axis,
                      *args, **kwargs) -> plt.axis:
         """
@@ -206,23 +188,22 @@ class Numerical(ABC):
         :param y_var: y-axis variable name.
         :param ax: Plot axis
         """
-        if x_var is not None and x_var not in self.history:
-            raise ValueError(f"Variable '{x_var}' not found in history."
-                             f"Available variables: {list(self.history.keys())}")
-        if y_var not in self.history:
-            raise ValueError(f"Variable '{y_var}' not found in history"
-                             f"Available variables: {list(self.history.keys())}")
+        if x_var is not None and x_var not in self.history.columns:
+            raise ValueError(f"Variable '{x_var}' not found in history. "
+                             f"Available variables: {list(self.history.columns)}")
+        if y_var not in self.history.columns:
+            raise ValueError(f"Variable '{y_var}' not found in history. "
+                             f"Available variables: {list(self.history.columns)}")
 
-
-        ydata = self.history[y_var].values()
-        xdata = self.history[x_var].values() if x_var is not None else np.arange(len(ydata))
+        xdata = self.history[x_var] if x_var is not None else self.history.index
+        ydata = self.history[y_var]
         ax.plot(xdata, ydata, *args, **kwargs)
         return ax
 
     def export_to_latex(self, filepath: str, variables: List[str] = None,
                         iterations: List[int] = None, precision: int = 4,
                         caption: str = None, label: str = None,
-                        formatting: Dict[str, Dict[str, str]] = None) -> None:
+                        formatting: dict = None) -> None:
         """
         Export history to a LaTeX table
 
@@ -233,15 +214,9 @@ class Numerical(ABC):
             precision: Number of decimal places for floating point values
             caption: Optional caption for the table
             label: Optional label for the table
-            formatting: Optional dictionary with formatting options for variables:
-                        {
-                          'variable_name': {
-                            'header': 'LaTeX formatted header',
-                            'format': 'LaTeX formatted string for values'
-                          }
-                        }
+            formatting: Optional dictionary with formatting options for variables
         """
-        history_to_latex(
+        df_to_latex(
             self.history,
             filepath,
             variables=variables,
@@ -260,128 +235,82 @@ class Numerical(ABC):
     def relative_error(x, y):
         return np.abs((x - y) / x)
 
-def history_to_latex(
-    history: Dict[str, Dict[int, Any]],
-    filepath: str,
-    variables: List[str] = None,
-    iterations: List[int] = None,
-    precision: int = 4,
-    caption: str = None,
-    label: str = None,
-    formatting: Dict[str, Dict[str, str]] = None
+
+def df_to_latex(
+        df: pd.DataFrame,
+        filepath: str,
+        variables: List[str] = None,
+        iterations: List[int] = None,
+        precision: int = 4,
+        caption: str = None,
+        label: str = None,
+        formatting: dict = None
 ) -> str:
     """
-    Convert optimization history to a LaTeX table and save to file
+    Convert DataFrame to a LaTeX table and save to file
 
     Args:
-        history: Dictionary mapping variable names to {iteration: value} dictionaries
+        df: DataFrame with iterations as index and variables as columns
         filepath: Path to save the LaTeX table
         variables: List of variable names to include (None for all variables)
         iterations: List of iterations to include (None for all iterations)
         precision: Number of decimal places for floating point values
         caption: Optional caption for the table
         label: Optional label for the table
-        formatting: Optional dictionary with formatting options for variables:
-                    {
-                      'variable_name': {
-                        'header': 'LaTeX formatted header',
-                        'format': 'LaTeX formatted string for values'
-                      }
-                    }
+        formatting: Optional dictionary with formatting options for variables
     Returns:
         str: The complete LaTeX table content
     """
     # Use all variables if none specified
     if variables is None:
-        variables = list(history.keys())
+        variables = list(df.columns)
 
-    # Use all iterations if none specified
-    if iterations is None:
-        max_iter = max(max(hist.keys()) for hist in history.values() if hist)
-        iterations = list(range(max_iter + 1))
+    # Filter DataFrame
+    df_subset = df[variables].copy()
 
-    # Initialize formatting dictionary if None
+    if iterations is not None:
+        df_subset = df_subset.loc[iterations]
+
+    # Apply formatting
     if formatting is None:
         formatting = {}
 
-    # Start building the LaTeX table
-    latex_content = [
+    new_columns = []
+    for var in variables:
+        if var in formatting and 'format' in formatting[var]:
+            format_spec = formatting[var]['format']
+            if isinstance(format_spec, str):
+                df_subset[var] = df_subset[var].apply(lambda x: f'{x:{format_spec}}')
+            elif callable(format_spec):
+                df_subset[var] = df_subset[var].apply(format_spec)
+
+        new_header = formatting.get(var, {}).get('header', f"{var}")
+        new_columns.append(new_header)
+
+    df_subset.columns = new_columns
+
+    # Convert to LaTeX
+    latex_lines = [
         "\\begin{table}[htbp]",
         "\\centering",
-        f"\\begin{{tabular}}{{c{'c' * len(variables)}}}",
-        "\\toprule"
+        df_subset.to_latex(
+            float_format=lambda x: f'{x:.{precision}f}',
+            escape=False,
+            index=True,
+            index_names=True
+        ),
     ]
 
-    # Add header row with formatted variable names
-    header_row = ["Iteration"]
-    for var in variables:
-        if var in formatting and 'header' in formatting[var]:
-            header_row.append(formatting[var]['header'])
-        else:
-            header_row.append(var)
-
-    latex_content.append(f"{' & '.join(header_row)} \\\\")
-    latex_content.append("\\midrule")
-
-    # Add table rows
-    for iter_num in iterations:
-        row_values = [iter_num]
-        for var in variables:
-            value = history[var].get(iter_num)
-            logger.debug(f"Value for {var} at iteration {iter_num}: {value}")
-
-            try:
-                if var in formatting and 'format' in formatting[var]:
-                    format_spec = formatting[var]['format']
-                    logger.debug(f'Format spec for {var}: {format_spec}')
-
-                    if isinstance(format_spec, str):
-                        # Use the format string directly
-                        formatted_val = f'{value:{format_spec}}'
-                    elif callable(format_spec):
-                        # Use the formatting function
-                        formatted_val = format_spec(value)
-                    else:
-                        logger.warning(f"Invalid format specification for {var}")
-                        formatted_val = str(value)
-                else:
-                    # Default formatting based on type
-                    if isinstance(value, (np.floating, float)):
-                        formatted_val = f'{value:0.{precision}f}'
-                    else:
-                        formatted_val = str(value)
-
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Formatting error for {var}: {e}")
-                formatted_val = str(value)
-
-            logger.debug(f"Formatted value for {var} at iteration {iter_num}: {formatted_val}")
-            row_values.append(formatted_val)
-
-        row_values = list(map(str, row_values))
-        latex_content.append(f"{' & '.join(row_values)} \\\\")
-
-    # Finish table
-    latex_content.append("\\bottomrule")
-    latex_content.append("\\end{tabular}")
-
-    # Add caption if provided
     if caption:
-        latex_content.append(f"\\caption{{{caption}}}")
-
-    # Add label if provided
+        latex_lines.append(f"\\caption{{{caption}}}")
     if label:
-        latex_content.append(f"\\label{{{label}}}")
+        latex_lines.append(f"\\label{{{label}}}")
 
-    latex_content.append("\\end{table}")
+    latex_lines.append("\\end{table}")
+    latex_content = '\n'.join(latex_lines)
 
-    # Join all lines
-    latex_table = '\n'.join(latex_content)
-
-    # Write to file
     with open(filepath, 'w') as file:
-        file.write(latex_table)
+        file.write(latex_content)
 
     logger.info(f"LaTeX table exported to {filepath}")
-    return latex_table
-
+    return latex_content

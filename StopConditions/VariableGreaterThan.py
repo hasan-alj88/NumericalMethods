@@ -10,13 +10,13 @@ class VariableGreaterThan(StopCondition): # noqa
     threshold: float
 
     def __post_init__(self):
-        if self.tracked_variable not in self.history:
+        if self.tracked_variable not in self.history.columns:
             raise ValueError(f"Variable '{self.tracked_variable}' not found in history."
-                             f"Available variables: {', '.join(self.history.keys())}")
+                             f"Available variables: {', '.join(self.history.columns.tolist())}")
         self.stop_reason = f'Variable {self.tracked_variable} greater than {self.threshold}'
 
     def track_variable_value(self) -> float:
-        return self.history[self.tracked_variable][self.last_iteration]
+        return self.history.loc[self.last_iteration, self.tracked_variable]
 
     def stop_condition_generator(self) -> Generator[str, None, None]:
         while True:

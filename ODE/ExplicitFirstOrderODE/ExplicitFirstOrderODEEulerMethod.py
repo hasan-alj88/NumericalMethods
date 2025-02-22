@@ -24,9 +24,9 @@ class ExplicitFirstOrderODEEulerMethod(ExplicitFirstOrderMethod):
         super().initialize()
 
     def step(self) -> Dict[str, Any]:
-        t_n = self.history['t'][self.last_iteration]
-        x_n = self.history['x'][self.last_iteration]
-        dt = self.history['dt'][self.last_iteration]
+        t_n = self.history.loc[self.last_iteration, 't']
+        x_n = self.history.loc[self.last_iteration, 'x']
+        dt = self.history.loc[self.last_iteration, 'dt']
 
         dx_dt_n = self.derivative_function(x_n)
 
