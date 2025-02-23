@@ -5,8 +5,8 @@ from Numerical import StopCondition
 
 
 @dataclass
-class VariablePlateau(StopCondition):
-    tracked_variable: str = field(default=None)
+class StopAtPlateau(StopCondition):
+    tracking: str = field(default=None)
     patience: int = field(default=10)
     tolerance: float = field(default=1e-6)
     patience_counter: int = field(init=False, default=0)
@@ -22,18 +22,18 @@ class VariablePlateau(StopCondition):
                 continue
 
             # Get current and previous values
-            current = self.history.loc[self.last_iteration, self.tracked_variable]
-            previous = self.history.loc[self.last_iteration - 1, self.tracked_variable]
+            current = self.history.loc[self.last_iteration, self.tracking]
+            previous = self.history.loc[self.last_iteration - 1, self.tracking]
 
             # Check if value has plateaued within tolerance
             if abs(current - previous) <= self.tolerance:
                 self.patience_counter += 1
                 if self.patience_counter >= self.patience:
-                    self.stop_reason = f"Variable '{self.tracked_variable}' plateaued for {self.patience} iterations within tolerance {self.tolerance}"
+                    self.stop_reason = f"Variable '{self.tracking}' plateaued for {self.patience} iterations within tolerance {self.tolerance}"
                     yield True, self.stop_reason
                     break
                 yield False, f"Potential plateau detected - {self.patience_counter}/{self.patience} iterations within tolerance {self.tolerance}"
             else:
                 # Reset counter if significant change observed
                 self.patience_counter = 0
-                yield False, f"Change detected in '{self.tracked_variable}': {previous} → {current}, difference: {abs(current - previous)}"
+                yield False, f"Change detected in '{self.tracking}': {previous} → {current}, difference: {abs(current - previous)}"
