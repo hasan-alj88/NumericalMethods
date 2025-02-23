@@ -1,14 +1,14 @@
 from typing import ClassVar, Set, Dict, Any
 
-from ODE.ExplicitFirstOrderODE.ExplicitFirstOrderODE import ExplicitFirstOrderMethod
+from ODE.ExplicitFirstOrderODE.FirstOrderAutonomousODE import FirstOrderAutonomousODE
 
 
-class ExplicitFirstOrderODEHeunMethod(ExplicitFirstOrderMethod):
+class FirstOrderAutonomousODEHeunMethod(FirstOrderAutonomousODE):
     """
     Implements the Explicit Heun method (Improved Euler) for solving ODEs.
     Uses predictor-corrector approach:
-    1. Predictor: x̃_{n+1} = x_n + dt * f(x_n)
-    2. Corrector: x_{n+1} = x_n + 0.5 * dt * (f(x_n) + f(x̃_{n+1}))
+    1. Predictor: x*_{n+1} = x_n + dt * f(x_n)
+    2. Corrector: x_{n+1} = x_n + 0.5 * dt * (f(x_n) + f(x*_{n+1}))
     """
     variables: ClassVar[Set[str]] = {'t', 'x', 'dt', 'dx_dt', 'predictor_x'}
 

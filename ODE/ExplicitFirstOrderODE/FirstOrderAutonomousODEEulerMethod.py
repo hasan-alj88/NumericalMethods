@@ -1,11 +1,11 @@
 from dataclasses import dataclass
 from typing import ClassVar, Set, Dict, Any
 
-from ODE.ExplicitFirstOrderODE.ExplicitFirstOrderODE import ExplicitFirstOrderMethod
+from ODE.ExplicitFirstOrderODE.FirstOrderAutonomousODE import FirstOrderAutonomousODE
 
 
 @dataclass
-class ExplicitFirstOrderODEEulerMethod(ExplicitFirstOrderMethod):
+class FirstOrderAutonomousODEEulerMethod(FirstOrderAutonomousODE):
     """
     Implements the Explicit Euler method (Forward Euler) for solving Explict first-order linear ODEs.
     dx/dt = f(x)

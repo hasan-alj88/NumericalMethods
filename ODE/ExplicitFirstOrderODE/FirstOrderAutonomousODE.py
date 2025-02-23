@@ -3,18 +3,18 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Any
 
+import pandas as pd
+
 from Numerical import Numerical
 
 
 @dataclass
-class ExplicitFirstOrderMethod(Numerical, ABC):
+class FirstOrderAutonomousODE(Numerical, ABC):
     """
-    Abstract base class for numerical methods for solving explicit first-order ODEs.
-    dx/dt = f(t)
-    - explicit: dx/dt can be explicitly calculated from the current state f(t).
-    no terms with mix dependent and independent variables.
+    Abstract base class for numerical methods for solving Autonomous first-order ODEs.
+    dx/dt = f(x)
+    - Autonomous: dx/dt depend only on x.
     - first-order: height derivative is 1.
-    - Linear: Height derivative powers is 1.
     """
     derivative_function: Callable = field(default=None)
     t0: float = field(default=0)
@@ -59,3 +59,11 @@ class ExplicitFirstOrderMethod(Numerical, ABC):
         Must be implemented by concrete subclasses.
         """
         pass
+
+    def error_analysis(self, analytic_solution_function: callable) -> pd.DataFrame:
+        self._single_argument_function(analytic_solution_function)
+        df = self.history.copy()
+        exact_solution = df.apply(lambda row: analytic_solution_function(row['t']), axis=1)
+        df['absolute_error'] = self.absolute_error(df['x'], exact_solution)
+        df['relative_error'] = self.relative_error(df['x'], exact_solution)
+        return df
