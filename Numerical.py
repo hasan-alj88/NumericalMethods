@@ -235,6 +235,10 @@ class Numerical(ABC):
     def relative_error(x, y):
         return np.abs((x - y) / x)
 
+    @abstractmethod
+    def error_analysis(self, analytic_solution_function: callable) -> pd.DataFrame:
+        pass
+
 
 def df_to_latex(
         df: pd.DataFrame,
