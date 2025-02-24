@@ -1,4 +1,3 @@
-import inspect
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Any
@@ -34,31 +33,6 @@ class FirstOrderAutonomousODE(Numerical, ABC):
         if self.t0 is None:
             raise ValueError('Initial state must include t0')
 
-    @staticmethod
-    def _single_argument_function(func):
-        if func is None:
-            raise ValueError('Derivative function must be provided at initialization')
-        elif not callable(func):
-            raise ValueError(f'Derivative function must be callable. Got: {type(func)}')
-
-        derivative_function_signature = inspect.signature(func)
-        non_default_args = [
-            p for p in derivative_function_signature.parameters.values()
-            if p.default is inspect.Parameter.empty and
-               p.kind in {inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD}
-        ]
-        if len(non_default_args) != 1:
-            raise ValueError(f'Derivative function must take exactly one positional argument. '
-                             f'Got: {non_default_args}. arguments: {derivative_function_signature.parameters}')
-
-
-    @abstractmethod
-    def step(self) -> Dict[str, Any]:
-        """
-        Perform one step of the numerical method.
-        Must be implemented by concrete subclasses.
-        """
-        pass
 
     def error_analysis(self, analytic_solution_function: callable) -> pd.DataFrame:
         self._single_argument_function(analytic_solution_function)
