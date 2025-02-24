@@ -1,4 +1,4 @@
-import json
+import inspect
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, Generator, Optional, Tuple
@@ -58,8 +58,8 @@ class Numerical(ABC):
     initial_state: dict = field(init=False)
     stop_conditions: List[StopCondition] = field(default_factory=list)
     max_iterations: int = 1_000
-    verbose: bool = False
     history: pd.DataFrame = field(default_factory=pd.DataFrame)
+    self_stopping: bool = field(default=False)
     _iteration: int = field(default=0, init=False)
 
     def add_stop_condition(self, stop_condition: StopCondition) -> None:
@@ -71,6 +71,7 @@ class Numerical(ABC):
         self.history = pd.DataFrame()
         self._iteration = 0
         self.record_state(self.initial_state)
+        logger.info(f"Initial state:\n{pd.Series(self.initial_state).to_string()}\n\n")
 
     @abstractmethod
     def _validate_initial_state(self) -> None:
@@ -132,6 +133,9 @@ class Numerical(ABC):
             state = self.step()
             self.record_state(state)
             logger.info(f"State: \n{pd.Series(state).to_string()}\n")
+            if self.self_stopping:
+                logger.info('self stop have been triggered by the step method')
+                break
 
         return self.history
 
@@ -228,6 +232,23 @@ class Numerical(ABC):
         )
 
     @staticmethod
+    def _single_argument_function(func):
+        if func is None:
+            raise ValueError('Derivative function must be provided at initialization')
+        elif not callable(func):
+            raise ValueError(f'Derivative function must be callable. Got: {type(func)}')
+
+        derivative_function_signature = inspect.signature(func)
+        non_default_args = [
+            p for p in derivative_function_signature.parameters.values()
+            if p.default is inspect.Parameter.empty and
+               p.kind in {inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD}
+        ]
+        if len(non_default_args) != 1:
+            raise ValueError(f'Derivative function must take exactly one positional argument. '
+                             f'Got: {non_default_args}. arguments: {derivative_function_signature.parameters}')
+
+    @staticmethod
     def absolute_error(x, y):
         return np.abs(x - y)
 
@@ -236,7 +257,7 @@ class Numerical(ABC):
         return np.abs((x - y) / x)
 
     @abstractmethod
-    def error_analysis(self, analytic_solution_function: callable) -> pd.DataFrame:
+    def error_analysis(self, *args, **kwargs) -> pd.DataFrame:
         pass
 
 
@@ -295,7 +316,7 @@ def df_to_latex(
 
     # Convert to LaTeX
     latex_lines = [
-        "\\begin{table}[htbp]",
+        "\\begin{table}[htbp]", # noqa
         "\\centering",
         df_subset.to_latex(
             float_format=lambda x: f'{x:.{precision}f}',
