@@ -4,11 +4,18 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from FindRoots.RootFinder import RootFinder
+from StopConditions.StopIfEqual import StopIfZero
 
 
 @dataclass
 class FindOneRoot(RootFinder, ABC):
     tolerance: float = field(default=1e-6)
+
+    def initialize(self) -> None:
+        self.add_stop_condition(
+            StopIfZero(tracking='fx_root', value=0.0, tolerance=self.tolerance)
+        )
+        super().initialize()
 
     @property
     def x_root(self) -> float:
