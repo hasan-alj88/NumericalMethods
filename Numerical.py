@@ -6,7 +6,9 @@ from typing import List, Generator, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import sympy
 
+from IgnoreException import IgnoreException
 from log_config import get_logger
 
 logger = get_logger(__name__)
@@ -59,7 +61,6 @@ class Numerical(ABC):
     stop_conditions: List[StopCondition] = field(default_factory=list)
     max_iterations: int = 1_000
     history: pd.DataFrame = field(default_factory=pd.DataFrame)
-    self_stopping: bool = field(default=False)
     _iteration: int = field(default=0, init=False)
 
     def add_stop_condition(self, stop_condition: StopCondition) -> None:
@@ -133,9 +134,6 @@ class Numerical(ABC):
             state = self.step()
             self.record_state(state)
             logger.info(f"State: \n{pd.Series(state).to_string()}\n")
-            if self.self_stopping:
-                logger.info('self stop have been triggered by the step method')
-                break
 
         return self.history
 
