@@ -3,7 +3,7 @@ from typing import Generator, Tuple
 
 import numpy as np
 
-from Numerical import StopCondition
+from Numerical import StopCondition, Numerical
 
 
 @dataclass
@@ -25,7 +25,7 @@ class StopIfEqual(StopCondition):
             current = self.history.loc[self.last_iteration, self.tracking]
 
             # Handle NaN values
-            if np.isnan(current):
+            if Numerical.is_nan(current):
                 yield True, f"Variable {self.tracking} is NaN"
                 continue
 
