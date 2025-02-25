@@ -260,6 +260,34 @@ class Numerical(ABC):
     def error_analysis(self, *args, **kwargs) -> pd.DataFrame:
         pass
 
+    @staticmethod
+    def is_nan(x) -> bool:
+        """
+        Check if a value is NaN (Not a Number).
+
+        Handles numpy values, Python built-in types, and sympy objects.
+
+        Args:
+            x: The value to check
+
+        Returns:
+            bool: True if the value is NaN, False otherwise
+        """
+
+        with IgnoreException(TypeError):
+            # Handle numpy arrays and values
+            if isinstance(x, np.ndarray):
+                return np.any(np.isnan(x))
+            if np.isnan(x):
+                return True
+
+            # Handle sympy objects
+            if isinstance(x, sympy.Basic):
+                return x.is_nan
+
+            with IgnoreException(ValueError):
+                return x != x  # NaN is the only value that doesn't equal itself
+            return False
 
 def df_to_latex(
         df: pd.DataFrame,
