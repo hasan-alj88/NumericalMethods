@@ -1,7 +1,7 @@
 from dataclasses import field, dataclass
 from typing import Generator, Tuple
 
-from Numerical import StopCondition
+from Core.Numerical import StopCondition
 
 
 @dataclass
@@ -17,23 +17,26 @@ class StopAtPlateau(StopCondition):
 
         while True:
             # Need at least 2 iterations to check for plateaus
-            if self.last_iteration < 1:
+            if len(self.history) < 2:
                 yield False, f"Not enough iterations to determine plateau"
                 continue
 
             # Get current and previous values
-            current = self.history.loc[self.last_iteration, self.tracking]
-            previous = self.history.loc[self.last_iteration - 1, self.tracking]
+            current = self.history[self.tracking]
+            previous = self.history(-2, self.tracking)
 
             # Check if value has plateaued within tolerance
             if abs(current - previous) <= self.tolerance:
                 self.patience_counter += 1
                 if self.patience_counter >= self.patience:
-                    self.stop_reason = f"Variable '{self.tracking}' plateaued for {self.patience} iterations within tolerance {self.tolerance}"
+                    self.stop_reason = (f"Variable '{self.tracking}' plateaued for"
+                                        f" {self.patience} iterations within tolerance {self.tolerance}")
                     yield True, self.stop_reason
                     break
-                yield False, f"Potential plateau detected - {self.patience_counter}/{self.patience} iterations within tolerance {self.tolerance}"
+                yield False, (f"Potential plateau detected - {self.patience_counter}/{self.patience} "
+                              f"iterations within tolerance {self.tolerance}")
             else:
                 # Reset counter if significant change observed
                 self.patience_counter = 0
-                yield False, f"Change detected in '{self.tracking}': {previous} → {current}, difference: {abs(current - previous)}"
+                yield False, (f"Change detected in '{self.tracking}': {previous} → {current}, "
+                              f"difference: {abs(current - previous)}")

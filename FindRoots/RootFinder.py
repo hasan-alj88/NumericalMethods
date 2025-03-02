@@ -4,23 +4,24 @@ from typing import List
 
 import pandas as pd
 
-from Numerical import Numerical
+from Core.Numerical import Numerical
+from utils.ErrorCalculations import absolute_error, relative_error
+from utils.ValidationTools import function_arg_count
 
 
 @dataclass
 class RootFinder(Numerical, ABC):
     function: callable = field(default=None)
-    roots: List[float] = field(default_factory=list, init=False)
+    independent_variable_count: int = 1
 
     def _validate_initial_state(self) -> None:
-        self._single_argument_function(self.function)
+        if function_arg_count(self.function) == self.independent_variable_count:
+            raise ValueError(f"Number of independent variables {function_arg_count(self.function)} while"
+                             f" {self.function} has {self.independent_variable_count}")
 
-
-    def error_analysis(self, exact_solution: List[float]) -> pd.DataFrame:
-        df = self.history.copy()
-        root_names = ['x_root'] + [f'x_root_{i}' for i in range(1, len(self.roots) + 1)]
-        for name, root in zip(root_names, self.roots):
-            df[f'{name}_absolute_error'] = self.absolute_error(df[name], exact_solution)
-            df[f'{name}_relative_error'] = self.relative_error(df[name], exact_solution)
+    def error_analysis(self, exact_solution:float) -> pd.DataFrame:
+        df = self.history.to_data_frame.copy()
+        df[f'absolute_error'] = absolute_error(df['t'], exact_solution)
+        df[f'relative_error'] = relative_error(df['t'], exact_solution)
         return df
 

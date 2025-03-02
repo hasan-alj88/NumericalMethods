@@ -1,41 +1,43 @@
-import numpy as np
-
 from FindRoots.BracketingMethods.BracketingMethods import BracketingMethods
-from log_config import get_logger
+from StopConditions.StopIfEqual import StopIfZero
+from utils.ValidationTools import is_nan
+from utils.log_config import get_logger
 
 logger = get_logger(__name__)
 
+
+
 class BiSectionMethod(BracketingMethods):
 
-    def initialize(self) -> None:
-        """Initialize the method with starting values and validate inputs."""
-        self._validate_initial_state()
+    def __post_init__(self) -> None:
+        self.add_stop_condition(StopIfZero(tracking='f_root', patience=3, tolerance=1e-6))
 
-        # Validate that function has opposite signs at bounds
-        fx_lower = self.function(self.x_lower)
-        fx_upper = self.function(self.x_upper)
-
-        if fx_lower * fx_upper > 0:
-            raise ValueError(
-                f"Function must have opposite signs at bracket endpoints. "
-                f"f({self.x_lower}) = {fx_lower}, f({self.x_upper}) = {fx_upper}"
-            )
-
-        # Calculate initial root approximation
-        self.x_root = (self.x_upper + self.x_lower) / 2
-
-        # Set initial state
-        self.initial_state = dict(
-            x_upper=self.x_upper,
-            x_lower=self.x_lower,
-            x_root=self.x_root,
-            fx_lower=fx_lower,
-            fx_upper=fx_upper,
-            fx_root=self.function(self.x_root),
+    @property
+    def initial_state(self) -> dict:
+        return dict(
+            t_lower=self.t_lower,
+            t_upper=self.t_upper,
+            t_root=self.t_root,
+            f_lower=self.function(self.t_lower),
+            f_root=self.function(self.t_root),
+            f_upper=self.function(self.t_upper),
+            bracket_size=abs(self.t_upper - self.t_lower),
             log='Initial state'
         )
 
-        super().initialize()
+    def _validate_initial_state(self) -> None:
+        # Validate that function has opposite signs at bounds
+        f_lower = self.function(self.t_lower)
+        f_upper = self.function(self.t_upper)
+
+        if any([is_nan(b) for b in [f_lower, f_upper]]):
+            raise ValueError(f"Function is not defined at bracket endpoints. "
+                             f"f({self.t_lower}) = {f_lower}, f({self.t_upper}) = {f_upper}")
+        elif f_lower * f_upper > 0:
+            raise ValueError(
+                f"Function must have opposite signs at bracket endpoints. "
+                f"f({self.t_lower}) = {f_lower}, f({self.t_upper}) = {f_upper}"
+            )
 
     def step(self) -> dict:
         """
@@ -45,55 +47,53 @@ class BiSectionMethod(BracketingMethods):
             dict: State variables for current iteration
         """
         # Get previous values
-        x_upper = self.history.loc[self.last_iteration, 'x_upper']
-        x_lower = self.history.loc[self.last_iteration, 'x_lower']
-        x_root = self.history.loc[self.last_iteration, 'x_root']
+        t_upper = self.history['t_upper']
+        t_lower = self.history['t_lower']
+        t_root = self.history['t_root']
 
         # Calculate function values
-        f_upper = self.function(x_upper)
-        f_lower = self.function(x_lower)
-        f_root = self.function(x_root)
+        f_upper = self.function(t_upper)
+        f_lower = self.function(t_lower)
+        f_root = self.function(t_root)
 
         # Check for undefined function values
-        for x, fx in [(x_lower, f_lower), (x_upper, f_upper), (x_root, f_root)]:
-            if np.isnan(fx):
-                raise ValueError(f"The function is not defined at x = {x:0.3e}")
+        for t, f in [(t_lower, f_lower), (t_upper, f_upper), (t_root, f_root)]:
+            if is_nan(f):
+                raise ValueError(f"The function is not defined at x = {t:0.3e}")
 
         # Check if we found the root exactly
         if f_lower == 0:
-            x_lower_new, x_upper_new = x_lower, x_lower
-            log = 'Root found at x_lower'
+            t_lower_new, t_upper_new = t_lower, t_lower
+            log = 'Root found at t_lower'
         elif f_upper == 0:
-            x_lower_new, x_upper_new = x_upper, x_upper
-            log = 'Root found at x_upper'
+            t_lower_new, t_upper_new = t_upper, t_upper
+            log = 'Root found at t_upper'
         elif f_root == 0:
-            x_lower_new, x_upper_new = x_root, x_root
-            log = 'Root found at x_root'
+            t_lower_new, t_upper_new = t_root, t_root
+            log = 'Root found at t_root'
         else:
             # Determine which half contains the root
             if f_lower * f_root < 0:
-                x_lower_new, x_upper_new = x_lower, x_root
+                t_lower_new, t_upper_new = t_lower, t_root
                 log = 'Root is in lower half of interval'
             else:
-                x_lower_new, x_upper_new = x_root, x_upper
+                t_lower_new, t_upper_new = t_root, t_upper
                 log = 'Root is in upper half of interval'
 
         # Calculate new root approximation
-        x_root_new = (x_lower_new + x_upper_new) / 2
-        self.x_root = x_root_new
+        t_root_new = (t_lower_new + t_upper_new) / 2
         # Log current state
         logger.info(log)
-        logger.info(f'f({x_root_new:0.3e}) = {f_root:0.3e}')
-
-        self.self_stopping = self._is_x_root_converged()
+        logger.info(f'f({t_root_new:0.3e}) = {f_root:0.3e}')
 
         # Return new state
         return dict(
-            x_upper=x_upper_new,
-            x_lower=x_lower_new,
-            x_root=x_root_new,
-            fx_lower=self.function(x_lower_new),
-            fx_upper=self.function(x_upper_new),
-            fx_root=self.function(x_root_new),
+            t_lower=t_lower_new,
+            t_root=t_root_new,
+            t_upper=t_upper_new,
+            f_lower=f_lower,
+            f_root=f_root,
+            f_upper=f_upper,
+            bracket_size=abs(t_upper_new - t_lower_new),
             log=log
         )
