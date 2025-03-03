@@ -14,14 +14,37 @@ from utils.log_config import get_logger
 class Numerical(ABC):
     stop_conditions: List[StopCondition] = field(default_factory=list)
     max_iterations: int = 1_000
-    history: NumericalHistory = field(default_factory=NumericalHistory, init=False)
+    _history: NumericalHistory = field(init=False, default=None)
     _iteration: int = field(default=0, init=False)
-    logger: logging = field(init=False, default_factory=lambda: get_logger('Numerical'))
+    console_log_level: int|str = field(default='OFF', init=False)
+    _logger: logging.Logger = field(default=None, init=False)
+    tolerance: float = field(default=1e-6)
+    patience: int = field(default=3)
 
-    def add_stop_condition(self, stop_condition: StopCondition) -> None:
-        """Add a stop condition to the list of stop conditions"""
-        self.stop_conditions.append(stop_condition)
+    @property
+    def history(self) -> NumericalHistory:
+        if self._history is None:
+            self._history = NumericalHistory(console_log_level=self.console_log_level)
+        return self._history
 
+    @history.setter
+    def history(self, value):
+        self._history = value
+
+    @property
+    def logger(self):
+        if self._logger is not None:
+            return self._logger
+        else:
+            self._logger =get_logger(self.__class__.__name__, self.console_log_level)
+        # if self.console_log_level == 'OFF':
+        #     # remove console handler
+        #     self._logger.handlers.pop()
+        return self._logger
+
+    # @logger.setter
+    # def logger(self, value):
+    #     self._logger = value
 
     @property
     def parameters(self) -> Set[str]:
@@ -32,15 +55,15 @@ class Numerical(ABC):
     def initial_state(self) -> dict:
         pass
 
+    def add_stop_condition(self, stop_condition: StopCondition) -> None:
+        """Add a stop condition to the list of stop conditions"""
+        self.stop_conditions.append(stop_condition)
+
     def initialize(self) -> None:
         self.history.data.clear()
         self._iteration = 0
         self.record_state(self.initial_state)
         self.logger.info(f"Initial state:{self.initial_state}")
-
-    @abstractmethod
-    def _validate_initial_state(self) -> None:
-        pass
 
     @abstractmethod
     def step(self) -> Dict[str, Any]:
@@ -72,9 +95,9 @@ class Numerical(ABC):
                 stop_cond_met, reason = stop_cond.next(self.history)
                 condition_name = stop_cond.__class__.__name__
                 if stop_cond_met:
-                    met_stop_conditions.append(f"Stop condition [{condition_name:<15}] met    : {reason}")
+                    met_stop_conditions.append(  f"Stop condition [{condition_name:<12}] MET    : {reason}")
                 else:
-                    unmet_stop_conditions.append(f"Stop condition [{condition_name:<15}] not met: {reason}")
+                    unmet_stop_conditions.append(f"Stop condition [{condition_name:<12}] NOT met: {reason}")
 
             status = '\n'.join(met_stop_conditions + unmet_stop_conditions)
             should_stop = len(unmet_stop_conditions) != len(self.stop_conditions)
@@ -97,15 +120,20 @@ class Numerical(ABC):
         self.logger.info(f"Starting {self.__class__.__name__}")
         self.initialize()
 
-        for status in self._check_stop_conditions():
-            self.logger.info(f"{status}")
-            self.logger.debug(f"Starting step {self.iteration}")
-            assert len(self.history) > 0, 'history must be initialized before calling step()'
-            state = self.step()
-            self.record_state(state)
-            self.logger.info(f"State: \n{state}\n")
-
-        return self.history.to_data_frame
+        try:
+            for status in self._check_stop_conditions():
+                self.logger.info(f"{status}")
+                self.logger.debug(f"Starting step {self.iteration}")
+                assert len(self.history) > 0, 'history must be initialized before calling step()'
+                state = self.step()
+                self.record_state(state)
+                self.logger.info(f"State: \n{state}\n")
+        except Exception as e:
+            self.logger.error(f"Exception occurred: {e}")
+            self.logger.error(f"Traceback:\n{e.__traceback__}")
+            raise e
+        finally:
+            return self.history.to_data_frame
 
     @property
     def iteration(self) -> int:

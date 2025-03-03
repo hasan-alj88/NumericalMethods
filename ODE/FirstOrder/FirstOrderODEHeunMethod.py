@@ -1,9 +1,14 @@
 from typing import Dict
 
 from ODE.FirstOrder.FirstOrderODE import FirstOrderODE
+from StopConditions.StopIfNaN import StopIfNaN
 
 
 class FirstOrderODEHeunMethod(FirstOrderODE):
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.add_stop_condition(StopIfNaN(track_variables=['x','x_p','t','dx_dt']))
 
     @property
     def initial_state(self) -> dict:
@@ -23,9 +28,11 @@ class FirstOrderODEHeunMethod(FirstOrderODE):
         dt = self.history['dt']
 
         t_1 = t + dt
-        x_predictor = x + dt * self.derivative_function(x, t)
-        x_1 = x + 0.5 * dt * (self.derivative_function(x, t) + self.derivative_function(x_predictor, t_1))
+        dx_dt = self.derivative_function(x, t)
+        x_predictor = x + dt * dx_dt
+        dx_dt_predictor = self.derivative_function(x_predictor, t_1)
+        x_1 = x + 0.5 * dt * (dx_dt + dx_dt_predictor)
 
-        return dict(x_c=x_1, x_p=x_predictor, t=t_1, dt=dt, dx_dt=self.derivative_function(x, t))
+        return dict(x=x_1, x_p=x_predictor, t=t_1, dt=dt, dx_dt=dx_dt)
 
 

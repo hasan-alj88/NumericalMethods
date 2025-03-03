@@ -14,13 +14,16 @@ class RootFinder(Numerical, ABC):
     independent_variable_count: int = 1
 
     def _validate_initial_state(self) -> None:
+        if self.function is None:
+            raise ValueError("Function must be specified")
+
         if function_arg_count(self.function) == self.independent_variable_count:
             raise ValueError(f"Number of independent variables {function_arg_count(self.function)} while"
                              f" {self.function} has {self.independent_variable_count}")
 
-    def error_analysis(self, exact_solution:float) -> pd.DataFrame:
+    def error_analysis(self, exact_solution:pd.Series) -> pd.DataFrame:
         df = self.history.to_data_frame.copy()
-        df[f'absolute_error'] = absolute_error(df['t'], exact_solution)
-        df[f'relative_error'] = relative_error(df['t'], exact_solution)
+        df[f'\varepsilon'] = absolute_error(df['t'], exact_solution)
+        df[f'\varepsilon_r'] = relative_error(df['t'], exact_solution)
         return df
 

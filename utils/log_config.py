@@ -1,8 +1,7 @@
 import logging
 import logging.config
-from logging.handlers import RotatingFileHandler
 import os
-import glob
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 # Define log folder relative to script location
@@ -12,7 +11,7 @@ log_folder.mkdir(exist_ok=True)
 
 
 class SequentialRotatingFileHandler(RotatingFileHandler):
-    def __init__(self, filename, maxBytes, backupCount=0, encoding=None, delay=False):
+    def __init__(self, filename, maxBytes, backupCount=0, encoding=None, delay=False): # noqa
         # Ensure we're using the log folder
         self.log_dir = log_folder
 
@@ -46,7 +45,7 @@ class SequentialRotatingFileHandler(RotatingFileHandler):
     def doRollover(self):
         if self.stream:
             self.stream.close()
-            self.stream = None
+            self.stream = None  # noqa
 
         next_num = self._get_next_number()
         new_file = self.log_dir / f"log_{next_num}.log"
@@ -95,17 +94,25 @@ LOGGING_CONFIG = {
 }
 
 
-def get_logger(name):
+def get_logger(name, console_log_level:str | int=None):
     logging.SequentialRotatingFileHandler = SequentialRotatingFileHandler
+    if not log_folder.exists():
+        log_folder.mkdir(exist_ok=True)
 
-    # Create logs directory if it doesn't exist
-    log_folder.mkdir(exist_ok=True)
+    if logging.getLogger().handlers:
+        return logging.getLogger(name)
 
-    if not logging.getLogger().handlers:
-        # Update the class path in the config to match the current module
-        LOGGING_CONFIG['handlers']['file']['class'] = f'{__name__}.SequentialRotatingFileHandler'
+    # Update the class path in the config to match the current module
+    log_config_dict = LOGGING_CONFIG.copy()
+    log_config_dict['handlers']['file']['class'] = f'{__name__}.SequentialRotatingFileHandler'
 
-        # Apply the configuration
-        logging.config.dictConfig(LOGGING_CONFIG)
+    if console_log_level and isinstance(console_log_level, str):
+        console_log_level = 100 if console_log_level.upper() == 'OFF' else console_log_level.upper()
+        log_config_dict['handlers']['console']['level'] = console_log_level
+    elif console_log_level and isinstance(console_log_level, int):
+        del log_config_dict['handlers']['console']
+
+    # Apply the configuration
+    logging.config.dictConfig(log_config_dict)
 
     return logging.getLogger(name)

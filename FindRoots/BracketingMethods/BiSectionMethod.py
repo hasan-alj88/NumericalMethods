@@ -1,42 +1,47 @@
+from dataclasses import dataclass
+
 from FindRoots.BracketingMethods.BracketingMethods import BracketingMethods
 from StopConditions.StopIfEqual import StopIfZero
+from StopConditions.StopIfNaN import StopIfNaN
 from utils.ValidationTools import is_nan
 from utils.log_config import get_logger
 
 logger = get_logger(__name__)
 
 
-
+@dataclass
 class BiSectionMethod(BracketingMethods):
 
     def __post_init__(self) -> None:
         self.add_stop_condition(StopIfZero(tracking='f_root', patience=3, tolerance=1e-6))
+        self.add_stop_condition(StopIfZero(tracking='bracket_size', patience=1, tolerance=1e-6))
+        self.add_stop_condition(StopIfNaN(track_variables=['f_lower', 'f_upper', 'f_root']))
 
     @property
     def initial_state(self) -> dict:
         return dict(
-            t_lower=self.t_lower,
-            t_upper=self.t_upper,
-            t_root=(self.t_upper+self.t_lower)/2.0,
-            f_lower=self.function(self.t_lower),
-            f_root=self.function((self.t_upper+self.t_lower)/2.0),
-            f_upper=self.function(self.t_upper),
-            bracket_size=abs(self.t_upper - self.t_lower),
+            t_lower=self.t_lower0,
+            t_upper=self.t_upper0,
+            t_root=(self.t_upper0 + self.t_lower0) / 2.0,
+            f_lower=self.function(self.t_lower0),
+            f_root=self.function((self.t_upper0 + self.t_lower0) / 2.0),
+            f_upper=self.function(self.t_upper0),
+            bracket_size=abs(self.t_upper0 - self.t_lower0),
             log='Initial state'
         )
 
     def _validate_initial_state(self) -> None:
         # Validate that function has opposite signs at bounds
-        f_lower = self.function(self.t_lower)
-        f_upper = self.function(self.t_upper)
+        f_lower = self.function(self.t_lower0)
+        f_upper = self.function(self.t_upper0)
 
         if any([is_nan(b) for b in [f_lower, f_upper]]):
             raise ValueError(f"Function is not defined at bracket endpoints. "
-                             f"f({self.t_lower}) = {f_lower}, f({self.t_upper}) = {f_upper}")
+                             f"f({self.t_lower0}) = {f_lower}, f({self.t_upper0}) = {f_upper}")
         elif f_lower * f_upper > 0:
             raise ValueError(
                 f"Function must have opposite signs at bracket endpoints. "
-                f"f({self.t_lower}) = {f_lower}, f({self.t_upper}) = {f_upper}"
+                f"f({self.t_lower0}) = {f_lower}, f({self.t_upper0}) = {f_upper}"
             )
 
     def step(self) -> dict:

@@ -1,3 +1,4 @@
+import logging
 from dataclasses import field, dataclass
 from typing import List, Any, Optional, Set
 
@@ -12,9 +13,8 @@ from utils.log_config import get_logger
 class NumericalHistory:
     parameters: Set[str] = field(default_factory=list)
     data: List[dict] = field(default_factory=list)
-
-    def __post_init__(self):
-        self.logger = get_logger(__name__)
+    console_log_level: int|str = field(default='OFF')
+    _logger: logging.Logger = field(default=None, init=False)
 
     def __len__(self):
         return len(self.data)
@@ -26,6 +26,17 @@ class NumericalHistory:
     def __call__(self, iteration: int, item: str) -> Any:
         """Get the state of an item at a given iteration"""
         return self.data[iteration][item] if self.data else None
+
+    @property
+    def logger(self):
+        if self._logger is not None:
+            return self._logger
+        self._logger =get_logger(self.__class__.__name__, self.console_log_level)
+        return self._logger
+
+    @logger.setter
+    def logger(self, value):
+        self._logger = value
 
     @property
     def last_iteration(self) -> int:

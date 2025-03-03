@@ -20,8 +20,8 @@ class StopIfEqual(StopCondition):
             raise ValueError("Must specify a variable name to track")
         if self.tolerance <= 0:
             raise ValueError(f"Absolute tolerance must be positive, got {self.tolerance}")
-        if self.patience <= 2:
-            raise ValueError(f"Patience must be >1, got {self.patience}")
+        if self.patience < 0:
+            raise ValueError(f"Patience must be positive, got {self.patience}")
         self.patience_counter = 0  # Initialize counter
         self.logger = get_logger(self.__class__.__name__)
 

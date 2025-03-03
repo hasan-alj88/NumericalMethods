@@ -1,9 +1,15 @@
 from typing import Dict
 
 from ODE.FirstOrder.FirstOrderODE import FirstOrderODE
+from StopConditions.StopIfNaN import StopIfNaN
 
 
 class FirstOrderODEEulerMethod(FirstOrderODE):
+    def __post_init__(self):
+        super().__post_init__()
+        self.add_stop_condition(StopIfNaN(track_variables=['x','t','dx_dt']))
+
+
     @property
     def initial_state(self) -> dict:
         return dict(x=self.x0, t=self.t0, dt=self.dt, dx_dt=self.derivative_function(self.x0, self.t0))
