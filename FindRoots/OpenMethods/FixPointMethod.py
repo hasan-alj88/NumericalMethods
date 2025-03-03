@@ -19,7 +19,6 @@ class FixPointMethod(RootFinder):
 
     def __post_init__(self):
         self.add_stop_condition(StopIfZero(tracking='f', patience=3, tolerance=1e-6))
-        super().__post_init__()
 
     @property
     def initial_state(self) -> dict:

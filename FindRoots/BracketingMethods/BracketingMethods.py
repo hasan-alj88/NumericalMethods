@@ -1,11 +1,10 @@
 from abc import ABC
 from dataclasses import dataclass, field
-
-from FindRoots.FindOneRoot import FindOneRoot
+from FindRoots.RootFinder import RootFinder
 
 
 @dataclass
-class BracketingMethods(FindOneRoot, ABC):
+class BracketingMethods(RootFinder, ABC):
     t_upper: float = field(default=None)
     t_lower: float = field(default=None)
 

@@ -17,9 +17,9 @@ class BiSectionMethod(BracketingMethods):
         return dict(
             t_lower=self.t_lower,
             t_upper=self.t_upper,
-            t_root=self.t_root,
+            t_root=(self.t_upper+self.t_lower)/2.0,
             f_lower=self.function(self.t_lower),
-            f_root=self.function(self.t_root),
+            f_root=self.function((self.t_upper+self.t_lower)/2.0),
             f_upper=self.function(self.t_upper),
             bracket_size=abs(self.t_upper - self.t_lower),
             log='Initial state'

@@ -1,6 +1,5 @@
 from abc import ABC
 from dataclasses import dataclass, field
-from typing import List
 
 import pandas as pd
 

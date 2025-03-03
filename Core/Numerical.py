@@ -1,3 +1,4 @@
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, Generator, Set,Any, Dict
@@ -15,9 +16,7 @@ class Numerical(ABC):
     max_iterations: int = 1_000
     history: NumericalHistory = field(default_factory=NumericalHistory, init=False)
     _iteration: int = field(default=0, init=False)
-
-    def __post_init__(self):
-        self.logger = get_logger(self.__class__.__name__)
+    logger: logging = field(init=False, default_factory=lambda: get_logger('Numerical'))
 
     def add_stop_condition(self, stop_condition: StopCondition) -> None:
         """Add a stop condition to the list of stop conditions"""
