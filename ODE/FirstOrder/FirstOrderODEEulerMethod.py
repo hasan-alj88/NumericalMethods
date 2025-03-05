@@ -7,7 +7,7 @@ from StopConditions.StopIfNaN import StopIfNaN
 class FirstOrderODEEulerMethod(FirstOrderODE):
     def __post_init__(self):
         super().__post_init__()
-        self.add_stop_condition(StopIfNaN(track_variables=['x','t','dx_dt']))
+        self.add_stop_condition(StopIfNaN(track_variables=['x' ,'t','dx_dt']))
 
 
     @property

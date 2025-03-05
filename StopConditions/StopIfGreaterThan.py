@@ -19,7 +19,7 @@ class StopIfGreaterThan(StopCondition):
         while True:
             current = self.history[self.tracking]
             if current > self.threshold:
-                yield True, f"Variable {self.tracking} is greater than {self.threshold}"
+                yield True, f"Variable {self.tracking}({current}) is greater than {self.threshold}"
                 break
             else:
-                yield False, f"Variable {self.tracking} is less than {self.threshold}"
+                yield False, f"Variable {self.tracking}({current}) is less than {self.threshold}"

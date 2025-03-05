@@ -38,7 +38,7 @@ class FirstOrderODE(Numerical, ABC):
             raise ValueError('Initial state must include t_final')
         elif self.t_final <= self.t0:
             raise ValueError(f't_final({self.t_final}) must be greater than t0 ({self.t0})')
-        self.add_stop_condition(StopIfGreaterThan(tracking='t', threshold=self.t_final))
+        self.add_stop_condition(StopIfGreaterThan(tracking='t', threshold=self.t_final-2*self.dt))
 
 
     def error_analysis(self, analytic_solution_function: callable) -> pd.DataFrame:

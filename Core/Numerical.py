@@ -1,4 +1,5 @@
 import logging
+import traceback
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, Generator, Set,Any, Dict
@@ -129,8 +130,8 @@ class Numerical(ABC):
                 self.record_state(state)
                 self.logger.info(f"State: \n{state}\n")
         except Exception as e:
-            self.logger.error(f"Exception occurred: {e}")
-            self.logger.error(f"Traceback:\n{e.__traceback__}")
+            self.logger.error(f"Exception occurred: {e}", exc_info=True)
+            # self.logger.error(f"Traceback:\n{traceback.format_exc()}")
             raise e
         finally:
             return self.history.to_data_frame
