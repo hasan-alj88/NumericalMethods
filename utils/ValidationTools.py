@@ -4,10 +4,11 @@ import numpy as np
 import sympy
 
 from utils.ExceptionTools import IgnoreException
+from utils.log_config import get_logger
 
 
 def is_nan(x) -> bool:
-    with IgnoreException(TypeError):
+    with IgnoreException(TypeError, logger=get_logger(__name__)):
         # Handle numpy arrays and values
         if isinstance(x, np.ndarray):
             return np.any(np.isnan(x))

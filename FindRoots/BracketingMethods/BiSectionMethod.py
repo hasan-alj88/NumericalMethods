@@ -13,8 +13,10 @@ logger = get_logger(__name__)
 class BiSectionMethod(BracketingMethods):
 
     def __post_init__(self) -> None:
-        self.add_stop_condition(StopIfZero(tracking='f_root', patience=3, tolerance=1e-6))
-        self.add_stop_condition(StopIfZero(tracking='bracket_size', patience=1, tolerance=1e-6))
+        self.add_stop_condition(StopIfZero(tracking='f_root', patience=3,
+                                           absolute_tolerance=1e-6, relative_tolerance=1e-6))
+        self.add_stop_condition(StopIfZero(tracking='bracket_size', patience=1,
+                                           absolute_tolerance=1e-6, relative_tolerance=1e-6))
         self.add_stop_condition(StopIfNaN(track_variables=['f_lower', 'f_upper', 'f_root']))
 
     @property

@@ -31,13 +31,21 @@ class NewtonRaphsonMethod(RootFinder):
             self.derivative_function = lambda t_n :self.derivative_sym.evalf(subs={t_sym: t_n})
             self.logger.info(f'f\'(t) = {self.derivative_sym}')
 
-        self.add_stop_condition(StopIfZero(tracking='f', patience=self.patience, tolerance=self.tolerance))
-        self.add_stop_condition(StopIfZero(tracking='df_dt', patience=0, tolerance=self.tolerance))
+        self.add_stop_condition(StopIfZero(tracking='f', patience=self.patience,
+                                           absolute_tolerance=self.absolute_tolerance,
+                                           relative_tolerance=self.relative_tolerance))
+        self.add_stop_condition(StopIfZero(tracking='df_dt', patience=0,
+                                           absolute_tolerance=self.absolute_tolerance,
+                                           relative_tolerance=self.relative_tolerance))
         self.add_stop_condition(StopIfNaN(track_variables=['f','t', 'df_dt']))
 
     @property
     def initial_state(self) -> dict:
-        return dict(t=self.t0, f=self.function(self.t0), df_dt=self.derivative_function(self.t0))
+        return dict(
+            t=self.t0,
+            f=self.function(self.t0),
+            df_dt=self.derivative_function(self.t0)
+        )
 
 
     def step(self) -> dict:
@@ -51,6 +59,6 @@ class NewtonRaphsonMethod(RootFinder):
         self.logger.info(f't_root = {t_np1:0.3e}')
         return dict(
             t=t_np1,
-            f=f,
+            f=self.function(t_np1),
             df_dt=fp,
         )

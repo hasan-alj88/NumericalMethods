@@ -1,7 +1,9 @@
 from abc import ABC
 from dataclasses import dataclass, field
 
+import numpy as np
 import pandas as pd
+from matplotlib import pyplot as plt
 
 from Core.Numerical import Numerical
 from utils.ErrorCalculations import absolute_error, relative_error

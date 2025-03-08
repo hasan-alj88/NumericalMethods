@@ -61,7 +61,7 @@ def df_to_latex(
 
     # Convert to LaTeX
     latex_lines = [
-        "\\begin{table}[htbp]", # noqa
+        "\\begin{table}[h]", # noqa
         "\\centering",
         df_subset.to_latex(
             float_format=lambda x: f'{x:.{precision}f}',

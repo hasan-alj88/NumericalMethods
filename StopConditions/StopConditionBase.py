@@ -1,6 +1,8 @@
 from abc import abstractmethod, ABC
 from dataclasses import dataclass, field
-from typing import Generator, Tuple, Optional
+from typing import Generator, Tuple, Optional, Dict
+
+import pandas as pd
 
 from Core.NumericalHistory import NumericalHistory
 from utils.log_config import get_logger
@@ -9,6 +11,7 @@ from utils.log_config import get_logger
 @dataclass
 class StopCondition(ABC):
     history: NumericalHistory = field(default_factory=NumericalHistory)
+    stop_condition_history: pd.DataFrame = field(default_factory=pd.DataFrame, init=False)
     stop_reason: str = field(default='', init=False)
     _generator: Optional[Generator[Tuple[bool, str], None, None]] = field(default=None, init=False)
 
@@ -28,6 +31,11 @@ class StopCondition(ABC):
         """Initialize the generator"""
         if self._generator is None:
             self._generator = self.stop_condition_generator()
+
+    def update_stop_history(self, current_condition_params: Dict[str, any]) -> None:
+        """Update the stop history with the current condition parameters"""
+        new_row = pd.DataFrame([current_condition_params])
+        self.stop_condition_history = pd.concat([self.stop_condition_history, new_row], ignore_index=True)
 
     def next(self, history: NumericalHistory) -> Tuple[bool, str]:
         """

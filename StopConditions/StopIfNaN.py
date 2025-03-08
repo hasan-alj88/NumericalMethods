@@ -13,6 +13,12 @@ class StopIfNaN(StopCondition):
         if len(self.track_variables) == 0:
             raise ValueError("Must specify at least one variable to track")
 
+    def __repr__(self):
+        return f"StopIfNaN(track_variables={self.track_variables})"
+
+    def __str__(self):
+        return f"StopIfNaN: Stop if any of {self.track_variables} is NaN"
+
     def stop_condition_generator(self) -> Generator[Tuple[bool, str], None, None]:
         while True:
             for var in self.track_variables:

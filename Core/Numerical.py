@@ -19,7 +19,8 @@ class Numerical(ABC):
     _iteration: int = field(default=0, init=False)
     console_log_level: int|str = field(default='OFF', init=False)
     _logger: logging.Logger = field(default=None, init=False)
-    tolerance: float = field(default=1e-6)
+    absolute_tolerance: float = field(default=1e-6)
+    relative_tolerance:float = field(default=None)
     patience: int = field(default=3)
 
     @property
@@ -94,11 +95,11 @@ class Numerical(ABC):
             unmet_stop_conditions = []
             for stop_cond in self.stop_conditions:
                 stop_cond_met, reason = stop_cond.next(self.history)
-                condition_name = stop_cond.__class__.__name__
+                condition_name = stop_cond.__str__()
                 if stop_cond_met:
-                    met_stop_conditions.append(  f"Stop condition [{condition_name:<12}] MET    : {reason}")
+                    met_stop_conditions.append(  f"Stop condition [{condition_name:<20}] MET    : {reason}")
                 else:
-                    unmet_stop_conditions.append(f"Stop condition [{condition_name:<12}] NOT met: {reason}")
+                    unmet_stop_conditions.append(f"Stop condition [{condition_name:<20}] NOT met: {reason}")
 
             status = '\n'.join(met_stop_conditions + unmet_stop_conditions)
             should_stop = len(unmet_stop_conditions) != len(self.stop_conditions)

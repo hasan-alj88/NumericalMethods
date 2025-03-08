@@ -10,7 +10,7 @@ def IgnoreException(exception_type, logger=get_logger(__name__)): # noqa
     try:
         yield
     except exception_type:
-        logger.warning(f'Ignoring exception [{exception_type.__name__}]')
+        # logger.warning(f'Ignoring exception [{exception_type.__name__}]at[{logger.name}]')
         pass
 
 
