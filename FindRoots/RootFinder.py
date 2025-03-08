@@ -29,3 +29,25 @@ class RootFinder(Numerical, ABC):
         df[f'\varepsilon_r'] = relative_error(df['t'], exact_solution)
         return df
 
+    def plot_function(self, t_min:float, t_max:float, ax:plt.Axes = None, resolution:int=1000, *args, **kwargs) -> plt.Axes:
+
+        if ax is None:
+            fig, ax = plt.subplots()
+
+        t = np.linspace(t_min, t_max, resolution)
+        f = self.function(t)
+        ax.plot(
+            t, f,
+            color='black',
+            linewidth=1.5,
+        )
+
+        ax.set_xlabel('t')
+        ax.set_ylabel('f(t)')
+        ax.grid(True)
+
+        # Highlight x-Axis
+        ax.axhline(y=0, color='k', linewidth=2.0)
+
+        return ax
+
