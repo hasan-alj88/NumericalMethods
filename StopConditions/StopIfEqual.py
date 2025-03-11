@@ -145,7 +145,7 @@ class StopIfEqual(StopCondition):
                 condition_str = " and ".join(condition_desc)
 
                 continue_reason = (
-                    f"Variable {self.tracking}:{current:.6g} != "
+                    f"Variable {self.tracking}:{float(current):.6g} != "
                     f"{value:.6g} ({condition_str})"
                 )
                 self.logger.debug(continue_reason)
