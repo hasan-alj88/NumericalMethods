@@ -6,8 +6,8 @@ import pandas as pd
 from matplotlib import pyplot as plt
 
 from Core.Numerical import df_to_latex
-from ODE.FirstOrder.FirstOrderODEEulerMethod import FirstOrderODEEulerMethod
-from ODE.FirstOrder.FirstOrderODEHeunMethod import FirstOrderODEHeunMethod
+from ODE.RungeKutta.RKEulerMethod import FirstOrderODEEulerMethod
+from ODE.RungeKutta.RKHeunMethod import RKHeunMethod
 from StopConditions.StopAtPlateau import StopAtPlateau
 
 
@@ -59,7 +59,7 @@ def bungee_jump_case_study():
     )
 
     # --------------- Heuns Method --------------
-    heun_solver = FirstOrderODEHeunMethod(
+    heun_solver = RKHeunMethod(
         derivative_function=bungee_acceleration_func, t0=0, x0=v0, dt=dt,
         stop_conditions=[StopAtPlateau(tracking='x', patience=2)]
     )
