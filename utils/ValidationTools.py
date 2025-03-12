@@ -34,3 +34,9 @@ def function_arg_count(func: callable) -> int:
            p.kind in {inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD}
     ]
     return len(non_default_args)
+
+
+def raise_value_error_if_none(variables: dict[str, object]):
+    for name, value in variables.items():
+        if value is None:
+            raise ValueError(f'Initial state must include {name}')
