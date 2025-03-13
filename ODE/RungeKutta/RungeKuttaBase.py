@@ -12,7 +12,7 @@ from utils.ValidationTools import function_arg_count, raise_value_error_if_none
 
 @dataclass
 class RungeKuttaBase(Numerical, ABC):
-    """
+    r"""
     Runge-Kutta methods for solving first-order ODEs:
 
     $$\frac{dy}{dt} = f(y, t)$$
@@ -68,7 +68,8 @@ class RungeKuttaBase(Numerical, ABC):
             raise ValueError(f"c_vector must be a {self.stage_order}x1 vector")
         self.validate_butcher_tableau()
 
-        self.add_stop_condition(StopIfGreaterThan(tracking='t', threshold=self.t_final-2*self.h))
+        self.add_stop_condition(StopIfGreaterThan(
+            tracking='t', threshold=self.t_final-self.h, patience=1, include_equal=True))
 
 
     @property
@@ -107,18 +108,18 @@ class RungeKuttaBase(Numerical, ABC):
     def stage_order(self) -> int:
         return len(self.b_vector)
 
-    @abstractmethod
     @property
+    @abstractmethod
     def rk_matrix(self) -> np.ndarray:
         pass
 
-    @abstractmethod
     @property
+    @abstractmethod
     def b_vector(self) -> np.ndarray:
         pass
 
-    @abstractmethod
     @property
+    @abstractmethod
     def c_vector(self) -> np.ndarray:
         pass
 
@@ -166,7 +167,7 @@ class RungeKuttaBase(Numerical, ABC):
         dy_dt1 = float(dy_dt1.evalf()) if isinstance(dy_dt1, sympy.Expr) else dy_dt1
 
         return dict(
-            y=yi1,
             t=ti1,
+            y=yi1,
             dy_dt=dy_dt1
         )

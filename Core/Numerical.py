@@ -22,6 +22,8 @@ class Numerical(ABC):
     absolute_tolerance: float = field(default=1e-6)
     relative_tolerance:float = field(default=None)
     patience: int = field(default=3)
+    t_label: str = field(default='t')
+    y_label: str = field(default='y')
 
     @property
     def history(self) -> NumericalHistory:
@@ -135,7 +137,9 @@ class Numerical(ABC):
             # self.logger.error(f"Traceback:\n{traceback.format_exc()}")
             raise e
         finally:
-            return self.history.to_data_frame
+            df = self.history.to_data_frame
+            df.rename(columns={'t': self.t_label, 'y': self.y_label}, inplace=True)
+            return df
 
     @property
     def iteration(self) -> int:
