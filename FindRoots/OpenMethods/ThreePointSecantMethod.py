@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-
+import numpy as np
 from FindRoots.RootFinder import RootFinder
 from StopConditions.StopIfEqual import StopIfZero
 from StopConditions.StopIfNaN import StopIfNaN
@@ -73,8 +73,8 @@ class ThreePointSecantMethod(RootFinder):
         return dict(
             x=x_np1,
             f=f_np1,
-            df_dt=df_dx,
-            d2f_dt2=d2f_dx2,
+            df_dx=df_dx,
+            d2f_dx2=d2f_dx2,
             det=det,
             log=log,
         )
