@@ -9,36 +9,36 @@ from StopConditions.StopIfNaN import StopIfNaN
 class ModifiedSecantMethod(RootFinder):
     function: callable = field(default=None)
     independent_variable_count: int = 1
-    t0: float = field(default=0.0)
-    dt: float = field(default=None)
+    x0: float = field(default=0.0)
+    h: float = field(default=None)
 
     def __post_init__(self):
-        if self.dt is None:
-            raise ValueError("dt cannot be None")
-        if self.t0 is None:
-            raise ValueError("t0 cannot be None")
+        if self.h is None:
+            raise ValueError("h cannot be None")
+        if self.x0 is None:
+            raise ValueError("x0 cannot be None")
         self.add_stop_condition(StopIfNaN(track_variables=['f', 't']))
 
     @property
     def initial_state(self) -> dict:
         return dict(
-            t=self.t0,
-            f=self.function(self.t0)
+            x=self.x0,
+            f=self.function(self.x0)
         )
 
     def step(self) -> Dict[str, Any]:
         """
-        t_{n+1} = t_n -\frac{dt * f(t_n)}{f(t_n) - f(t_n-dt)}}
+        x_{n+1} = x_n -\frac{h * f(x_n)}{f(x_n) - f(x_n-h)}}
         :return:
         """
 
-        t_n = self.history['t']
+        x_n = self.history['x']
         f_n = self.history['f']
 
-        t_np1 = t_n - self.dt * f_n / (f_n - self.function(t_n - self.dt))
-        f_np1 = self.function(t_np1)
+        x_np1 = x_n - self.h * f_n / (f_n - self.function(x_n - self.h))
+        f_np1 = self.function(x_np1)
 
         return dict(
-            t=t_np1,
+            x=x_np1,
             f=f_np1
         )

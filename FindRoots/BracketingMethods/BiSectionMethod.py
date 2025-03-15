@@ -22,28 +22,28 @@ class BiSectionMethod(BracketingMethods):
     @property
     def initial_state(self) -> dict:
         return dict(
-            t_lower=self.t_lower0,
-            t_upper=self.t_upper0,
-            t_root=(self.t_upper0 + self.t_lower0) / 2.0,
-            f_lower=self.function(self.t_lower0),
-            f_root=self.function((self.t_upper0 + self.t_lower0) / 2.0),
-            f_upper=self.function(self.t_upper0),
-            bracket_size=abs(self.t_upper0 - self.t_lower0),
+            x_lower=self.a,
+            x_upper=self.b,
+            x_root=(self.b + self.a) / 2.0,
+            f_lower=self.function(self.a),
+            f_root=self.function((self.b + self.a) / 2.0),
+            f_upper=self.function(self.b),
+            bracket_size=abs(self.b - self.a),
             log='Initial state'
         )
 
     def _validate_initial_state(self) -> None:
         # Validate that function has opposite signs at bounds
-        f_lower = self.function(self.t_lower0)
-        f_upper = self.function(self.t_upper0)
+        f_lower = self.function(self.a)
+        f_upper = self.function(self.b)
 
         if any([is_nan(b) for b in [f_lower, f_upper]]):
             raise ValueError(f"Function is not defined at bracket endpoints. "
-                             f"f({self.t_lower0}) = {f_lower}, f({self.t_upper0}) = {f_upper}")
+                             f"f({self.a}) = {f_lower}, f({self.b}) = {f_upper}")
         elif f_lower * f_upper > 0:
             raise ValueError(
                 f"Function must have opposite signs at bracket endpoints. "
-                f"f({self.t_lower0}) = {f_lower}, f({self.t_upper0}) = {f_upper}"
+                f"f({self.a}) = {f_lower}, f({self.b}) = {f_upper}"
             )
 
     def step(self) -> dict:
@@ -54,53 +54,53 @@ class BiSectionMethod(BracketingMethods):
             dict: State variables for current iteration
         """
         # Get previous values
-        t_upper = self.history['t_upper']
-        t_lower = self.history['t_lower']
-        t_root = self.history['t_root']
+        x_upper = self.history['x_upper']
+        x_lower = self.history['x_lower']
+        x_root = self.history['x_root']
 
         # Calculate function values
-        f_upper = self.function(t_upper)
-        f_lower = self.function(t_lower)
-        f_root = self.function(t_root)
+        f_upper = self.function(x_upper)
+        f_lower = self.function(x_lower)
+        f_root = self.function(x_root)
 
         # Check for undefined function values
-        for t, f in [(t_lower, f_lower), (t_upper, f_upper), (t_root, f_root)]:
+        for t, f in [(x_lower, f_lower), (x_upper, f_upper), (x_root, f_root)]:
             if is_nan(f):
                 raise ValueError(f"The function is not defined at x = {t:0.3e}")
 
         # Check if we found the root exactly
         if f_lower == 0:
-            t_lower_new, t_upper_new = t_lower, t_lower
-            log = 'Root found at t_lower'
+            x_lower_new, x_upper_new = x_lower, x_lower
+            log = 'Root found at x_lower'
         elif f_upper == 0:
-            t_lower_new, t_upper_new = t_upper, t_upper
-            log = 'Root found at t_upper'
+            x_lower_new, x_upper_new = x_upper, x_upper
+            log = 'Root found at x_upper'
         elif f_root == 0:
-            t_lower_new, t_upper_new = t_root, t_root
-            log = 'Root found at t_root'
+            x_lower_new, x_upper_new = x_root, x_root
+            log = 'Root found at x_root'
         else:
             # Determine which half contains the root
             if f_lower * f_root < 0:
-                t_lower_new, t_upper_new = t_lower, t_root
+                x_lower_new, x_upper_new = x_lower, x_root
                 log = 'Root is in lower half of interval'
             else:
-                t_lower_new, t_upper_new = t_root, t_upper
+                x_lower_new, x_upper_new = x_root, x_upper
                 log = 'Root is in upper half of interval'
 
         # Calculate new root approximation
-        t_root_new = (t_lower_new + t_upper_new) / 2
+        x_root_new = (x_lower_new + x_upper_new) / 2
         # Log current state
         logger.info(log)
-        logger.info(f'f({t_root_new:0.3e}) = {f_root:0.3e}')
+        logger.info(f'f({x_root_new:0.3e}) = {f_root:0.3e}')
 
         # Return new state
         return dict(
-            t_lower=t_lower_new,
-            t_root=t_root_new,
-            t_upper=t_upper_new,
+            x_lower=x_lower_new,
+            x_root=x_root_new,
+            x_upper=x_upper_new,
             f_lower=f_lower,
             f_root=f_root,
             f_upper=f_upper,
-            bracket_size=abs(t_upper_new - t_lower_new),
+            bracket_size=abs(x_upper_new - x_lower_new),
             log=log
         )
