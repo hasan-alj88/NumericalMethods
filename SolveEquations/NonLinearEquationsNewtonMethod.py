@@ -8,7 +8,6 @@ from Core import Numerical
 from StopConditions.StopAtOrderOfMagnitudeIncrease import StopAtOrderOfMagnitudeIncrease
 from StopConditions.StopIfEqual import StopIfZero
 from StopConditions.StopIfNaN import StopIfNaN
-from utils.ValidationTools import is_nan
 
 
 @dataclass
