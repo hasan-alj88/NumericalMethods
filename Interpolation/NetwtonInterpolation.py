@@ -37,14 +37,4 @@ def newton_interpolation_polynomial(x: np.ndarray, y: np.ndarray, order:int) -> 
     return polynomial
 
 
-def lagrange_interpolation_polynomial(x: np.ndarray, y: np.ndarray) -> sp.Expr:
-    symx = sp.Symbol('x')
-    n = len(x)
-    s = 0
-    for i in range(n):
-        product_term = y[i]
-        for j in range(n):
-            if j != i:
-                product_term *= (symx - x[j])
-        s += product_term
-    return sp.simplify(s)
+

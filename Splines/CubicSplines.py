@@ -1,8 +1,10 @@
+from itertools import product
 from typing import List
 
 import matplotlib.pyplot as plt
 import numpy as np
 import sympy as sp
+import pandas as pd
 
 
 def cubic_spline_functions(
@@ -13,101 +15,80 @@ def cubic_spline_functions(
 ) -> List[dict]:
     n = len(x_data)
     n_intervals = n - 1
-
     h = np.diff(x_data)  # h[i] = x[i+1] - x[i]
     delta_y = np.diff(y_data)  # delta_y[i] = y[i+1] - y[i]
 
-    ### [b_i] h_i + [c_i] h_i^2 + [d_i] h_i^3 & = f_{i+1} - f_i ###
-    mb1 = np.diag(h)  # [b_i] h_i
-    mc1 = np.diag(h ** 2)  # + [c_i] h_i^2
-    md1 = np.diag(h ** 3)  # + [d_i] h_i^3
-    l1 = delta_y.copy()  # = f_{i+1} - f_i
+    # a_i = f_i
+    a = y_data[:n_intervals]
 
-    ### - [b_i] + [b_{i+1}] - 2[c_i] h_i - 3[d_i] h_i^2 & = 0 ###
-    mb2 = np.zeros((n_intervals - 1, n_intervals))
-    for i in range(n_intervals - 1):
-        mb2[i, i] = -1  # - [b_i]
-        mb2[i, i + 1] = 1  # + [b_{i+1}]
+    unknowns = [f'{v}_{i}' for v, i in product(['b','c','d'],range(n_intervals))]
+    equations = pd.DataFrame(columns=unknowns+['LHS'])
+    # f_{i+1}-f_i = b_i h_i + c_i h_i^2 + d_i h_i^3
+    for i in range(n_intervals):
+        equations.loc[i, f'b_{i}']=h[i]
+        equations.loc[i, f'c_{i}']=h[i]**2
+        equations.loc[i, f'd_{i}']=h[i]**3
+        equations.loc[i, 'LHS']=delta_y[i]
 
-    # Fix dimension issues by using zeros matrices with proper dimensions
-    mc2 = np.zeros((n_intervals - 1, n_intervals))
-    md2 = np.zeros((n_intervals - 1, n_intervals))
+    # 0 = b_i - b_{i+1} + 2h_i c_i + 3h_i^2 d_i
+    k = len(equations)
+    for i in range(n_intervals-1):
+        equations.loc[k+i, f'b_{i}']=1
+        equations.loc[k+i, f'b_{i+1}']=-1
+        equations.loc[k+i, f'c_{i}']=2*h[i]
+        equations.loc[k+i, f'd_{i}']=3*h[i]**2
+        # LHS = 0 implied
 
-    # Fill in diagonal elements
-    for i in range(n_intervals - 1):
-        mc2[i, i] = -2 * h[i]  # - [c_i]2 h_i
-        md2[i, i] = -3 * h[i] ** 2  # - [d_i]3 h_i^2
+    # 0 = c_i - c_{i+1} + 3h_i d_i
+    k = len(equations)
+    for i in range(n_intervals-1):
+        equations.loc[k+i+1, f'c_{i}']=1
+        equations.loc[k+i+1, f'c_{i+1}']=-1
+        equations.loc[k+i+1, f'd_{i}']=3*h[i]
+        # LHS = 0 implied
 
-    l2 = np.zeros(n_intervals - 1)  # = 0
+    k = len(equations)
+    if end_condition.lower() == "natural":
+        # c_0 = 0
+        equations.loc[k+1, 'c_0']=1
+        # LHS = 0 implied
 
-    ### - [c_i] + [c_{i+1}]   - 3[d_i] h_i & = 0  ###
-    mb3 = np.zeros((n_intervals - 1, n_intervals))  # 0
-    mc3 = np.zeros((n_intervals - 1, n_intervals))  # 0
-    md3 = np.zeros((n_intervals - 1, n_intervals))  # Initialize with proper dimensions
+        # c_n = 0
+        equations.loc[k+2, f'c_{n_intervals-1}']=1
+        # LHS = 0 implied
 
-    for i in range(n_intervals - 1):
-        mc3[i, i] = -1  # - [c_i]
-        mc3[i, i + 1] = 1  # + [c_{i+1}]
-        md3[i, i] = -3 * h[i]  # - [d_i]3 h_i
+    elif end_condition.lower() == "not-a-knot":
+        # d_0 - d_1 = 0
+        equations.loc[k+1, 'd_0']=-1
+        equations.loc[k+1, 'd_1']=1
+        # LHS = 0 implied
 
-    l3 = np.zeros(n_intervals - 1)  # = 0
+        # d_{n-1} - d_n = 0
+        equations.loc[k + 2, f'd_{n_intervals-2}'] = -1
+        equations.loc[k + 2, f'd_{n_intervals-1}'] = 1
+        # LHS = 0 implied
 
-    if end_condition == "natural":
-        ### c_0 = 0, c_{n-2} = 0 ###
-        mb4 = np.zeros((2, n_intervals))
-        mc4 = np.zeros((2, n_intervals))
-        mc4[0, 0] = 1  # c0
-        mc4[1, -1] = 1  # c_{n-2}
-        md4 = np.zeros((2, n_intervals))
-        l4 = np.zeros((2,))
-
-    elif end_condition == "not-a-knot":
-        ### d_0 = d_1, d_{n-3} = d_{n-2} ###
-        mb4 = np.zeros((2, n_intervals))
-        mc4 = np.zeros((2, n_intervals))
-        md4 = np.zeros((2, n_intervals))
-        md4[0, 0] = 1  # d_0
-        md4[0, 1] = -1  # -d_1
-        md4[1, -2] = -1  # -d_{n-2}
-        md4[1, -1] = 1  # d_{n-3} (fixed index)
-        l4 = np.zeros((2,))  # =0
     else:
-        raise ValueError("end_condition must be 'natural' or 'not-a-knot'")
+        raise ValueError(f"end_condition must be 'natural' or 'not-a-knot' Got {end_condition} which is not available")
 
-    # construct the M matrix
-    m1 = np.concatenate((mb1, mc1, md1), axis=1)
-    m2 = np.concatenate((mb2, mc2, md2), axis=1)
-    m3 = np.concatenate((mb3, mc3, md3), axis=1)
-    m4 = np.concatenate((mb4, mc4, md4), axis=1)
+    equations.fillna(0, inplace=True)
+    m = equations.loc[:,unknowns]
+    lhs = equations.loc[:,'LHS']
+    lhs = lhs.reindex(m.index)    # ensure the equation correctly ordered
+    solution = pd.Series(np.linalg.solve(m.values, lhs.values), index=m.columns)
 
-    assert m1.shape[1] == m2.shape[1] == m3.shape[1] == m4.shape[1], "Column dimensions must match for concatenation"
-
-    m = np.concatenate((m1, m2, m3, m4), axis=0)  # Combine all rows
-
-    # construct L matrix
-    l = np.concatenate((l1, l2, l3, l4), axis=0)
-
-    z = np.linalg.solve(m, l)
-
-    # Extract coefficients
-    b = z[:n_intervals]
-    c = z[n_intervals:2 * n_intervals]
-    d = z[2 * n_intervals:]
-    a = y_data[:-1]  # a coefficients are the y values at the left endpoint of each interval
-
-    assert b.shape == c.shape == d.shape
+    # extract solution
+    b = [solution[f'b_{i}'] for i in range(n_intervals)]
+    c = [solution[f'c_{i}'] for i in range(n_intervals)]
+    d = [solution[f'd_{i}'] for i in range(n_intervals)]
+    lower_bound = x_data[:-1]
+    upper_bound = x_data[1:]
 
     spline_functions = []
-    for i, (aa, bb, cc, dd) in enumerate(zip(a, b, c, d)):
-        x_i = x_data[i]
-
-        # Spline function
-        t = x - x_i
-        spline = aa + bb * t + cc * t ** 2 + dd * t ** 3
-
+    for ai,bi,ci,di,x_min,x_max in zip(a,b,c,d,lower_bound,upper_bound):
         spline_functions.append({
-            's': spline,
-            'interval': (x_data[i], x_data[i + 1])
+            's': ai+bi*(x-x_min)+ci*(x-x_min)**2+di*(x-x_min)**3,
+            'interval':(x_min,x_max),
         })
 
     return spline_functions
@@ -117,10 +98,10 @@ def spline_to_latex(spline_fns: List[dict]):
     latex_str = r"\begin{equation}"+'\n'
     latex_str += r"f(x) = "+'\n'
     latex_str += r"\begin{cases}"+'\n'
-    for fn in spline_fns:
+    for i,fn in enumerate(spline_fns):
         x_min, x_max = sorted(list(fn.get('interval')))
-        s_latex = sp.latex(fn.get('s').simplify())
-        latex_str += fr"{s_latex} & {x_min:0.3g} \leq x \leq {x_max:0.3g} \\"+'\n'
+        s_latex = sp.latex(fn.get('s'))
+        latex_str += fr"s_{i}(x)={s_latex} & {x_min:0.3g} \leq x \leq {x_max:0.3g} \\"+'\n'
     latex_str += r"\end{cases}"+'\n'
     latex_str += r"\end{equation}"
     return latex_str
@@ -141,28 +122,20 @@ def evaluate_spline(spline_fns: List[dict], xx:np.ndarray)->np.ndarray:
     return np.array(yy)
 
 
-
-
 def plot_splines(spline: List[dict], ax:plt.Axes=None, **kwargs)->plt.Axes:
     if ax is None:
         fig, ax = plt.subplots(figsize=(10, 6))
 
     x_sym = list(spline[0]['s'].free_symbols)[0]  # Get the symbol used in expressions
-
-    # Create a more direct plotting approach using numpy instead of sympy.plotting
     for fn in spline:
         x_min, x_max = sorted(list(fn.get('interval')))
         s = fn.get('s')
         assert s is not None
-
-        # Convert sympy expression to numpy function
         f = sp.lambdify(x_sym, s, "numpy")
 
-        # Create x points for smooth plotting
         x_points = np.linspace(x_min, x_max, 1000)
         y_points = f(x_points)
 
-        # Plot the segment
         ax.plot(x_points, y_points, **kwargs)
 
     return ax
